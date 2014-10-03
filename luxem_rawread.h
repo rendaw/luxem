@@ -3,13 +3,6 @@
 
 #include "luxem_common.h"
 
-enum luxem_rawread_conclusion_t
-{
-	luxem_rawread_cont,
-	luxem_rawread_error,
-	luxem_rawread_hungry
-};
-
 struct luxem_rawread_callbacks_t;
 struct luxem_rawread_context_t;
 

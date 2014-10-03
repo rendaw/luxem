@@ -12,7 +12,7 @@
 #define STATE CONTEXT, DATA
 
 #define STATE_PROTO(name) \
-	static enum luxem_rawread_conclusion_t name(STATE_ARGS)
+	static enum result_t name(STATE_ARGS)
 
 #define SET_ERROR(message) \
 	char const error_temp[] = message; \
@@ -20,35 +20,51 @@
 	context->error.length = sizeof(error_temp) - 1;
 
 #define ERROR(message) \
+	do \
+	{ \
 	SET_ERROR(message) \
-	return luxem_rawread_error;
+	return result_error; \
+	} while(0)
+
+#define PUSH_STATE(state) \
+	do \
+	{ \
+	if (!push_state(context, state)) return result_error; \
+	} while(0)
+
+enum result_t
+{
+	result_continue,
+	result_error,
+	result_hungry
+};
 
 struct stack_t;
 
-typedef enum luxem_rawread_conclusion_t (*state_signature_t)(STATE_ARGS);
+typedef enum result_t (*state_signature_t)(STATE_ARGS);
 
 static luxem_bool_t call_void_callback(CONTEXT_ARGS, luxem_rawread_void_callback_t callback);
 static luxem_bool_t call_string_callback(CONTEXT_ARGS, luxem_rawread_string_callback_t callback, struct luxem_string_t const *string);
 static luxem_bool_t can_eat_one(DATA_ARGS);
 static char taste_one(DATA_ARGS);
 static char eat_one(DATA_ARGS);
-static void push_state(CONTEXT_ARGS, state_signature_t state);
+static luxem_bool_t push_state(CONTEXT_ARGS, state_signature_t state);
 static void remove_state(CONTEXT_ARGS, struct stack_t *node);
 static luxem_bool_t is_whitespace(char const value);
 static void eat_whitespace(DATA_ARGS);
 STATE_PROTO(state_whitespace);
-static enum luxem_rawread_conclusion_t read_word(STATE_ARGS, struct luxem_string_t *out);
-static enum luxem_rawread_conclusion_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out);
+static enum result_t read_word(STATE_ARGS, struct luxem_string_t *out);
+static enum result_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out);
 STATE_PROTO(state_type);
-static enum luxem_rawread_conclusion_t read_primitive(STATE_ARGS, luxem_bool_t const key);
+static enum result_t read_primitive(STATE_ARGS, luxem_bool_t const key);
 STATE_PROTO(state_primitive);
 STATE_PROTO(state_key);
 STATE_PROTO(state_value_phrase);
 STATE_PROTO(state_value);
-static void push_object_state(CONTEXT_ARGS);
+static luxem_bool_t push_object_state(CONTEXT_ARGS);
 STATE_PROTO(state_key_separator);
 STATE_PROTO(state_object_next);
-static void push_array_state(CONTEXT_ARGS);
+static luxem_bool_t push_array_state(CONTEXT_ARGS);
 STATE_PROTO(state_array_next);
 
 struct stack_t
@@ -96,13 +112,19 @@ char eat_one(DATA_ARGS)
 	return data->pointer[(*eaten)++];
 }
 
-void push_state(CONTEXT_ARGS, state_signature_t state)
+luxem_bool_t push_state(CONTEXT_ARGS, state_signature_t state)
 {
 	struct stack_t *new_top = malloc(sizeof(struct stack_t));
+	if (!new_top)
+	{
+		SET_ERROR("Failed to malloc stack element; out of memory?");
+		return luxem_false;
+	}
 	new_top->previous = context->state_top;
 	assert(state);
 	new_top->state = state;
 	context->state_top = new_top;
+	return luxem_true;
 }
 
 void remove_state(CONTEXT_ARGS, struct stack_t *node)
@@ -157,10 +179,10 @@ void eat_whitespace(DATA_ARGS)
 STATE_PROTO(state_whitespace)
 {
 	eat_whitespace(DATA);
-	return luxem_rawread_cont;
+	return result_continue;
 }
 
-enum luxem_rawread_conclusion_t read_word(STATE_ARGS, struct luxem_string_t *out)
+enum result_t read_word(STATE_ARGS, struct luxem_string_t *out)
 {
 	size_t const start = *eaten;
 	while (luxem_true)
@@ -183,16 +205,16 @@ enum luxem_rawread_conclusion_t read_word(STATE_ARGS, struct luxem_string_t *out
 			case '\\':
 				out->pointer = data->pointer + start;
 				out->length = *eaten - start;
-				return luxem_rawread_cont;
+				return result_continue;
 			default:
 				eat_one(DATA);
 				break;
 		}
 	}
-	return luxem_rawread_hungry;
+	return result_hungry;
 }
 
-enum luxem_rawread_conclusion_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out)
+enum result_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out)
 {
 	size_t const start = *eaten;
 	luxem_bool_t escaped = luxem_false;
@@ -209,50 +231,50 @@ enum luxem_rawread_conclusion_t read_words(STATE_ARGS, char delimiter, struct lu
 			{
 				out->pointer = data->pointer + start;
 				out->length = *eaten - 1 - start;
-				return luxem_rawread_cont;
+				return result_continue;
 			}
 		}
 	}
-	return luxem_rawread_hungry;
+	return result_hungry;
 }
 
 STATE_PROTO(state_type)
 {
 	struct luxem_string_t type;
-	enum luxem_rawread_conclusion_t result = read_words(STATE, ')', &type);
-	if (result == luxem_rawread_cont)
+	enum result_t result = read_words(STATE, ')', &type);
+	if (result == result_continue)
 	{
 		luxem_bool_t callback_result = call_string_callback(context, context->callbacks.type, &type);
-		if (!callback_result) return luxem_rawread_error;
-		return luxem_rawread_cont;
+		if (!callback_result) return result_error;
+		return result_continue;
 	}
 
-	return luxem_rawread_hungry;
+	return result_hungry;
 }
 
-enum luxem_rawread_conclusion_t read_primitive(STATE_ARGS, luxem_bool_t const key)
+enum result_t read_primitive(STATE_ARGS, luxem_bool_t const key)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 
 	{
 		struct luxem_string_t string;
-		enum luxem_rawread_conclusion_t result;
+		enum result_t result;
 		if (taste_one(DATA) == '"')
 		{
 			eat_one(DATA);
 			result = read_words(STATE, '"', &string);
 		}
 		else result = read_word(STATE, &string);
-		if (result == luxem_rawread_cont)
+		if (result == result_continue)
 		{
 			luxem_bool_t const callback_result = 
 				key ? call_string_callback(context, context->callbacks.key, &string) :
 				call_string_callback(context, context->callbacks.primitive, &string);
-			if (!callback_result) return luxem_rawread_error;
-			return luxem_rawread_cont;
+			if (!callback_result) return result_error;
+			return result_continue;
 		}
 
-		return luxem_rawread_hungry;
+		return result_hungry;
 	}
 }
 
@@ -268,64 +290,65 @@ STATE_PROTO(state_key)
 
 STATE_PROTO(state_value_phrase)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 	
-	push_state(context, state_value);
+	PUSH_STATE(state_value);
 
 	if (taste_one(DATA) == '(')
 	{
 		eat_one(DATA);
-		push_state(context, state_whitespace);
-		push_state(context, state_type);
+		PUSH_STATE(state_whitespace);
+		PUSH_STATE(state_type);
 	}
 
-	return luxem_rawread_cont;
+	return result_continue;
 }
 
 STATE_PROTO(state_value)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 
 	switch (taste_one(DATA))
 	{
 		case '{':
 			eat_one(DATA);
 			eat_whitespace(DATA);
-			if (!can_eat_one(DATA)) return luxem_rawread_hungry;
-			if (taste_one(DATA) == '}') push_state(context, state_object_next);
-			else push_object_state(CONTEXT);
+			if (!can_eat_one(DATA)) return result_hungry;
+			if (taste_one(DATA) == '}') PUSH_STATE(state_object_next);
+			else { if (!push_object_state(CONTEXT)) return result_error; }
 			call_void_callback(context, context->callbacks.object_begin);
 			break;
 		case '[': 
 			eat_one(DATA);
 			eat_whitespace(DATA);
-			if (!can_eat_one(DATA)) return luxem_rawread_hungry;
-			if (taste_one(DATA) == ']') push_state(context, state_array_next);
-			else push_array_state(CONTEXT);
+			if (!can_eat_one(DATA)) return result_hungry;
+			if (taste_one(DATA) == ']') PUSH_STATE(state_array_next);
+			else { if (!push_array_state(CONTEXT)) return result_error; }
 			call_void_callback(context, context->callbacks.array_begin);
 			break;
 		default: 
-			push_state(context, state_primitive);
+			PUSH_STATE(state_primitive);
 			break;
 	}
 
-	return luxem_rawread_cont;
+	return result_continue;
 }
 
-void push_object_state(CONTEXT_ARGS)
+luxem_bool_t push_object_state(CONTEXT_ARGS)
 {
-	push_state(context, state_object_next);
-	push_state(context, state_whitespace);
-	push_state(context, state_value_phrase);
-	push_state(context, state_whitespace);
-	push_state(context, state_key_separator);
-	push_state(context, state_whitespace);
-	push_state(context, state_key);
+	PUSH_STATE(state_object_next);
+	PUSH_STATE(state_whitespace);
+	PUSH_STATE(state_value_phrase);
+	PUSH_STATE(state_whitespace);
+	PUSH_STATE(state_key_separator);
+	PUSH_STATE(state_whitespace);
+	PUSH_STATE(state_key);
+	return luxem_true;
 }
 
 STATE_PROTO(state_key_separator)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 
 	if (taste_one(DATA) != ':')
 	{
@@ -333,12 +356,12 @@ STATE_PROTO(state_key_separator)
 	}
 	else eat_one(DATA);
 
-	return luxem_rawread_cont;
+	return result_continue;
 }
 
 STATE_PROTO(state_object_next)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 
 	{
 		char next = taste_one(DATA);
@@ -352,7 +375,7 @@ STATE_PROTO(state_object_next)
 		{
 			eat_one(DATA);
 			eat_whitespace(DATA);
-			if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+			if (!can_eat_one(DATA)) return result_hungry;
 			next = taste_one(DATA);
 		}
 
@@ -361,23 +384,24 @@ STATE_PROTO(state_object_next)
 			eat_one(DATA);
 			call_void_callback(context, context->callbacks.object_end);
 		}
-		else push_object_state(CONTEXT);
+		else { if (!push_object_state(CONTEXT)) return result_error; }
 
-		return luxem_rawread_cont;
+		return result_continue;
 	}
 }
 
-void push_array_state(CONTEXT_ARGS)
+luxem_bool_t push_array_state(CONTEXT_ARGS)
 {
-	push_state(context, state_array_next);
-	push_state(context, state_whitespace);
-	push_state(context, state_value_phrase);
-	push_state(context, state_whitespace);
+	PUSH_STATE(state_array_next);
+	PUSH_STATE(state_whitespace);
+	PUSH_STATE(state_value_phrase);
+	PUSH_STATE(state_whitespace);
+	return luxem_true;
 }
 
 STATE_PROTO(state_array_next)
 {
-	if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+	if (!can_eat_one(DATA)) return result_hungry;
 
 	{
 		char next = taste_one(DATA);
@@ -391,7 +415,7 @@ STATE_PROTO(state_array_next)
 		{
 			eat_one(DATA);
 			eat_whitespace(DATA);
-			if (!can_eat_one(DATA)) return luxem_rawread_hungry;
+			if (!can_eat_one(DATA)) return result_hungry;
 			next = taste_one(DATA);
 		}
 
@@ -400,15 +424,20 @@ STATE_PROTO(state_array_next)
 			eat_one(DATA);
 			call_void_callback(context, context->callbacks.array_end);
 		}
-		else push_array_state(CONTEXT);
+		else { if (!push_array_state(CONTEXT)) return result_error; }
 
-		return luxem_rawread_cont;
+		return result_continue;
 	}
 }
 
 struct luxem_rawread_context_t *luxem_rawread_construct(void)
 {
 	struct luxem_rawread_context_t *context = malloc(sizeof(struct luxem_rawread_context_t));
+	
+	if (!context)
+	{
+		return 0;
+	}
 
 	context->error.pointer = 0;
 	context->error.length = 0;
@@ -417,7 +446,11 @@ struct luxem_rawread_context_t *luxem_rawread_construct(void)
 
 	context->state_top = 0;
 
-	push_array_state(context);
+	if (!push_array_state(context))
+	{
+		free(context);
+		return 0;
+	}
 
 	return context;
 }
@@ -459,11 +492,11 @@ luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data,
 			if (!node) return luxem_false;
 
 			{
-				enum luxem_rawread_conclusion_t result = node->state(STATE);
+				enum result_t result = node->state(STATE);
 
-				if (result == luxem_rawread_hungry) break;
+				if (result == result_hungry) break;
 
-				if (result == luxem_rawread_error) 
+				if (result == result_error) 
 				{
 					assert(context->error.pointer);
 					if (!context->error.pointer)
@@ -474,7 +507,7 @@ luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data,
 					return luxem_false;
 				}
 
-				if (result == luxem_rawread_cont)
+				if (result == result_continue)
 				{
 					remove_state(context, node);
 					if (!context->state_top)
