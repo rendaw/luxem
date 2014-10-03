@@ -145,12 +145,12 @@ void remove_state(CONTEXT_ARGS, struct stack_t *node)
 	if (above)
 	{
 		above->previous = check->previous;
-		free(check);
 	}
 	else
 	{
 		context->state_top = check->previous;
 	}
+	free(check);
 }
 
 luxem_bool_t is_whitespace(char const value)
