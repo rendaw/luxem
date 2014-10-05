@@ -24,10 +24,10 @@ struct luxem_rawread_callbacks_t
 };
 
 struct luxem_rawread_context_t *luxem_rawread_construct(void);
-struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(struct luxem_rawread_context_t *context);
 void luxem_rawread_destroy(struct luxem_rawread_context_t *context);
+struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(struct luxem_rawread_context_t *context);
 luxem_bool_t luxem_rawread_feed(struct luxem_rawread_context_t *context, struct luxem_string_t const *data, size_t *out_eaten);
-struct luxem_string_t const *luxem_rawread_get_error(struct luxem_rawread_context_t *context);
+struct luxem_string_t *luxem_rawread_get_error(struct luxem_rawread_context_t *context);
 size_t luxem_rawread_get_position(struct luxem_rawread_context_t *context);
 
 #endif

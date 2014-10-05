@@ -1,5 +1,7 @@
 #include "luxem_rawread.h"
 
+#include "luxem_internal_common.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,9 +17,8 @@
 	static enum result_t name(STATE_ARGS)
 
 #define SET_ERROR(message) \
-	char const error_temp[] = message; \
-	context->error.pointer = error_temp; \
-	context->error.length = sizeof(error_temp) - 1;
+	context->error.pointer = message; \
+	context->error.length = sizeof(message) - 1;
 
 #define ERROR(message) \
 	do \
@@ -91,7 +92,12 @@ luxem_bool_t call_void_callback(CONTEXT_ARGS, luxem_rawread_void_callback_t call
 luxem_bool_t call_string_callback(CONTEXT_ARGS, luxem_rawread_string_callback_t callback, struct luxem_string_t const *string)
 {
 	if (callback)
-		return callback(context, context->callbacks.user_data, string);
+	{
+		struct luxem_string_t const *unslashed = unslash(string);
+		luxem_bool_t result = callback(context, context->callbacks.user_data, unslashed ? unslashed : string);
+		if (unslashed) free((void *)unslashed);
+		return result;
+	}
 	return luxem_true;
 }
 
@@ -185,30 +191,24 @@ STATE_PROTO(state_whitespace)
 enum result_t read_word(STATE_ARGS, struct luxem_string_t *out)
 {
 	size_t const start = *eaten;
+	luxem_bool_t escaped = luxem_false;
 	while (luxem_true)
 	{
 		if (!can_eat_one(DATA)) break;
-		switch (taste_one(DATA))
 		{
-			case ' ':
-			case '\t':
-			case '\n':
-			case ':':
-			case ',':
-			case '(':
-			case ')':
-			case '{':
-			case '}':
-			case '[':
-			case ']':
-			case '"':
-			case '\\':
+			char const next = taste_one(DATA);
+			if (escaped)
+			{
+				eat_one(DATA);
+				escaped = luxem_false;
+			}
+			else if (!is_word_char(next))
+			{
 				out->pointer = data->pointer + start;
 				out->length = *eaten - start;
 				return result_continue;
-			default:
-				eat_one(DATA);
-				break;
+			}
+			else eat_one(DATA);
 		}
 	}
 	return result_hungry;
@@ -455,11 +455,6 @@ struct luxem_rawread_context_t *luxem_rawread_construct(void)
 	return context;
 }
 
-struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(CONTEXT_ARGS)
-{
-	return &context->callbacks;
-}
-
 void luxem_rawread_destroy(struct luxem_rawread_context_t *context)
 {
 	struct stack_t *top = 0;
@@ -472,6 +467,11 @@ void luxem_rawread_destroy(struct luxem_rawread_context_t *context)
 	}
 
 	free(context);
+}
+
+struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(CONTEXT_ARGS)
+{
+	return &context->callbacks;
 }
 
 luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data, size_t *out_eaten)
@@ -525,9 +525,8 @@ luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data,
 	return luxem_true;
 }
 
-struct luxem_string_t const *luxem_rawread_get_error(CONTEXT_ARGS)
+struct luxem_string_t *luxem_rawread_get_error(CONTEXT_ARGS)
 {
-	assert(context->error.pointer != 0);
 	return &context->error;
 }
 
