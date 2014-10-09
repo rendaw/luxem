@@ -12,13 +12,13 @@ Luxem is a typed data serialization format similar to JSON.
 ''',
     ext_modules = [
         Extension(
-                'luxem', 
-                sources = [
-                        'luxem.c',
-                        '../c/luxem_rawread.c',
-                        '../c/luxem_rawwrite.c',
-                        '../c/luxem_internal_common.c',
-                ]
+            '_luxem', 
+            sources = [
+                    '_luxem.c',
+                    '../c/luxem_rawread.c',
+                    '../c/luxem_rawwrite.c',
+                    '../c/luxem_internal_common.c',
+            ]
         )
     ]
 )

@@ -6,7 +6,7 @@ import luxem
 class TestRawWrite(unittest.TestCase):
     def setUp(self):
         sequence = []
-        self.writer = luxem.Writer(
+        self.writer = luxem.RawWriter(
             lambda text: sequence.append(text),
             pretty=True,
             use_spaces=True,
@@ -14,8 +14,8 @@ class TestRawWrite(unittest.TestCase):
         )
         def compare(string):
             output = ''.join(sequence)
-            print('Got: {}'.format(output))
-            print('Exp: {}'.format(string))
+            #print('Got: {}'.format(output))
+            #print('Exp: {}'.format(string))
             self.assertEqual(output, string)
         self.compare = compare
 

@@ -21,5 +21,7 @@ luxem_bool_t luxem_rawwrite_key(struct luxem_rawwrite_context_t *context, struct
 luxem_bool_t luxem_rawwrite_type(struct luxem_rawwrite_context_t *context, struct luxem_string_t const *string);
 luxem_bool_t luxem_rawwrite_primitive(struct luxem_rawwrite_context_t *context, struct luxem_string_t const *string);
 
+struct luxem_string_t const *luxem_to_ascii16(struct luxem_string_t const *data, struct luxem_string_t *error);
+
 #endif
 

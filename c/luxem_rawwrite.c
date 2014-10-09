@@ -8,6 +8,12 @@
 
 #include <stdio.h> /* debug */
 
+#define SET_ERROR_TARGET(message, target) \
+	do { \
+	target->pointer = message; \
+	target->length = sizeof(message) - 1; \
+	} while(0)
+
 #define ERROR(message) \
 	do { \
 	context->error.pointer = message; \
@@ -137,16 +143,8 @@ static luxem_bool_t pop_state(struct luxem_rawwrite_context_t *context)
 	struct stack_t *check = context->state_top;
 	{
 		struct stack_t *top = context->state_top;
-		printf("popping, state stack at: ");
 		while (top)
-		{
-			printf("%d ", top->state);
 			top = top->previous;
-		}
-		printf("\n");
-		printf("state_object %d, state_array %d, state_value_phrase %d, state_value %d\n",
-			state_object, state_array, state_value_phrase, state_value);
-		fflush(stdout);
 	}
 	assert(context->state_top); /* Should be checked in CHECK() */
 	switch (context->state_top->state)
@@ -329,5 +327,34 @@ luxem_bool_t luxem_rawwrite_primitive(struct luxem_rawwrite_context_t *context, 
 	WRITE_STRING(",");
 	if (context->pretty) WRITE_STRING("\n");
 	return luxem_true;
+}
+
+struct luxem_string_t const *luxem_to_ascii16(struct luxem_string_t const *data, struct luxem_string_t *error)
+{
+	assert(data);
+	{
+		size_t const new_length = data->length << 1;
+		struct luxem_string_t *out = malloc(sizeof(struct luxem_string_t) + new_length);
+		if (!out) 
+		{
+			SET_ERROR_TARGET("Failed to allocate output memory", error);
+			return 0;
+		}
+		{
+			int index;
+			char *cursor = (char *)out + sizeof(struct luxem_string_t);
+			out->pointer = cursor;
+			out->length = new_length;
+			for (index = 0; index < data->length; ++index)
+			{
+				assert((unsigned char)(data->pointer[index] >> 4) < 16);
+				assert((unsigned char)(data->pointer[index] & 0x0F) < 16);
+				*(cursor++) = (unsigned char)'a' + ((unsigned char)data->pointer[index] >> 4);
+				*(cursor++) = (unsigned char)'a' + ((unsigned char)data->pointer[index] & 0x0F);
+			}
+			assert(cursor == out->pointer + new_length);
+		}
+		return out;
+	}
 }
 

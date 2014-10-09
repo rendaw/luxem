@@ -150,44 +150,68 @@ static int Reader_init(Reader *self, PyObject *positional_args, PyObject *named_
 static void Reader_dealloc(Reader *self)
 {
 	luxem_rawread_destroy(self->context);
-	Py_DECREF(self->object_begin);
-	Py_DECREF(self->object_end);
-	Py_DECREF(self->array_begin);
-	Py_DECREF(self->array_end);
-	Py_DECREF(self->key);
-	Py_DECREF(self->type);
-	Py_DECREF(self->primitive);
+	Py_XDECREF(self->object_begin);
+	Py_XDECREF(self->object_end);
+	Py_XDECREF(self->array_begin);
+	Py_XDECREF(self->array_end);
+	Py_XDECREF(self->key);
+	Py_XDECREF(self->type);
+	Py_XDECREF(self->primitive);
 	self->ob_type->tp_free((PyObject*)self);
 }
 
-static PyObject *Reader_feed(Reader *self, PyObject *positional_args)
+static PyObject *Reader_feed(Reader *self, PyObject *positional_args, PyObject *named_args)
 {
-	PyObject *argument;
-	struct luxem_string_t string;
-	size_t eaten = 0;
+	PyObject *data;
+	luxem_bool_t finish = luxem_true;
+	
+	static char *named_args_list[] = 
+	{
+		"data", 
+		"finish", 
+		NULL
+	};
 
-	if (!PyArg_ParseTuple(
+	if (!PyArg_ParseTupleAndKeywords(
 		positional_args, 
-		"O", 
-		&argument))
+		named_args, 
+		"O|b", 
+		named_args_list, 
+		&data, 
+		&finish))
 		return NULL; 
 
-	if (PyString_Check(argument))
+	if (PyString_Check(data))
 	{
-		PyString_AsStringAndSize(argument, (char **)&string.pointer, &string.length);
+		struct luxem_string_t string;
+		size_t eaten = 0;
+		PyString_AsStringAndSize(data, (char **)&string.pointer, &string.length);
 
-		if (!luxem_rawread_feed(self->context, &string, &eaten))
+		if (!luxem_rawread_feed(self->context, &string, &eaten, finish))
 		{
 			if (luxem_rawread_get_error(self->context)->pointer != &exception_marker)
 			{
 				assert(luxem_rawread_get_error(self->context)->length > 0);
-				struct luxem_string_t const *error = luxem_rawread_get_error(self->context);
-				char const *error_format = "%*.s [offset %lu]";
-				size_t formatted_error_size = snprintf(NULL, 0, error_format, error->pointer, error->length, luxem_rawread_get_position(self->context));
-				char *formatted_error = malloc(formatted_error_size);
-				snprintf(formatted_error, formatted_error_size, error_format, error->pointer, error->length, luxem_rawread_get_position(self->context));
-				PyErr_SetString(PyExc_ValueError, formatted_error);
-				free(formatted_error);
+				{
+					struct luxem_string_t const *error = luxem_rawread_get_error(self->context);
+					char const *error_format = "%.*s [offset %lu]";
+					int formatted_error_size = snprintf(NULL, 0, error_format, error->length, error->pointer, luxem_rawread_get_position(self->context));
+					assert(formatted_error_size >= 0);
+					if (formatted_error_size < 0)
+					{
+						PyErr_SetString(PyExc_ValueError, "Encountered an exception, then encountered an error while trying to format the exception.");
+					}
+					else
+					{
+						formatted_error_size += 1; /* Was returning one too small */
+						{
+							char *formatted_error = malloc(formatted_error_size);
+							snprintf(formatted_error, formatted_error_size, error_format, error->length, error->pointer, luxem_rawread_get_position(self->context));
+							PyErr_SetString(PyExc_ValueError, formatted_error);
+							free(formatted_error);
+						}
+					}
+				}
 			}
 			else
 			{
@@ -201,7 +225,7 @@ static PyObject *Reader_feed(Reader *self, PyObject *positional_args)
 	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "luxem.Reader.feed requires a single string argument.");
+		PyErr_SetString(PyExc_TypeError, "luxem.RawReader.feed requires a single string argument.");
 		return NULL;
 	}
 }
@@ -211,7 +235,7 @@ static PyMethodDef Reader_methods[] =
 	{
 		"feed", 
 		(PyCFunction)Reader_feed, 
-		METH_VARARGS,
+		METH_KEYWORDS,
 		"Stream from bytes or file argument."
 	},
 	{NULL}
@@ -221,10 +245,10 @@ static PyTypeObject ReaderType = {PyObject_HEAD_INIT(NULL) 0};
 
 static luxem_bool_t ReaderType_init(void)
 {
-	ReaderType.tp_name = "luxem.Reader";
+	ReaderType.tp_name = "luxem.RawReader";
 	ReaderType.tp_basicsize = sizeof(Reader);
 	ReaderType.tp_dealloc = (destructor)Reader_dealloc;
-	ReaderType.tp_flags = Py_TPFLAGS_DEFAULT;
+	ReaderType.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
 	ReaderType.tp_doc = "Decodes luxem data";
 	ReaderType.tp_methods = Reader_methods;
 	ReaderType.tp_init = (initproc)Reader_init;
@@ -245,7 +269,6 @@ typedef struct {
 
 static luxem_bool_t translate_rawwrite_write(struct luxem_rawwrite_context_t *context, Writer *user_data, struct luxem_string_t const *string)
 {
-	printf("pointer is %p, length is %lu\n", string->pointer, string->length); fflush(stdout);
 	PyObject *arguments = Py_BuildValue("(s#)", string->pointer, string->length);
 	if (!arguments) return luxem_false;
 	{
@@ -392,11 +415,11 @@ static PyObject *translate_string_method(Writer *self, PyObject *positional_args
 }
 
 static PyObject *Writer_key(Writer *self, PyObject *positional_args) 
-	{ return translate_string_method(self, positional_args, luxem_rawwrite_key, "luxem.Writer.key requires a single string argument."); }
+	{ return translate_string_method(self, positional_args, luxem_rawwrite_key, "luxem.RawWriter.key requires a single string argument."); }
 static PyObject *Writer_type(Writer *self, PyObject *positional_args) 
-	{ return translate_string_method(self, positional_args, luxem_rawwrite_type, "luxem.Writer.type requires a single string argument."); }
+	{ return translate_string_method(self, positional_args, luxem_rawwrite_type, "luxem.RawWriter.type requires a single string argument."); }
 static PyObject *Writer_primitive(Writer *self, PyObject *positional_args) 
-	{ return translate_string_method(self, positional_args, luxem_rawwrite_primitive, "luxem.Writer.primitive requires a single string argument."); }
+	{ return translate_string_method(self, positional_args, luxem_rawwrite_primitive, "luxem.RawWriter.primitive requires a single string argument."); }
 
 static PyMethodDef Writer_methods[] = 
 {
@@ -414,10 +437,10 @@ static PyTypeObject WriterType = {PyObject_HEAD_INIT(NULL) 0};
 
 static luxem_bool_t WriterType_init(void)
 {
-	WriterType.tp_name = "luxem.Writer";
+	WriterType.tp_name = "luxem.RawWriter";
 	WriterType.tp_basicsize = sizeof(Writer);
 	WriterType.tp_dealloc = (destructor)Writer_dealloc;
-	WriterType.tp_flags = Py_TPFLAGS_DEFAULT;
+	WriterType.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
 	WriterType.tp_doc = "Encodes luxem data";
 	WriterType.tp_methods = Writer_methods;
 	WriterType.tp_init = (initproc)Writer_init;
@@ -430,22 +453,63 @@ static luxem_bool_t WriterType_init(void)
 /* luxem module + module entry point */
 /*************************************/
 
+static PyObject *translate_to_from_ascii16(PyObject *self, PyObject *positional_args, struct luxem_string_t const *(*function)(struct luxem_string_t const *, struct luxem_string_t *))
+{
+	PyObject *argument;
+	if (!PyArg_ParseTuple(
+		positional_args, 
+		"O", 
+		&argument))
+		return NULL; 
+
+	if (PyString_Check(argument))
+	{
+		struct luxem_string_t string;
+		struct luxem_string_t error;
+		struct luxem_string_t const *out;
+		PyObject *out_string;
+		PyString_AsStringAndSize(argument, (char **)&string.pointer, &string.length);
+		out = function(&string, &error);
+		if (!out)
+		{
+			PyErr_SetObject(PyExc_ValueError, PyString_FromStringAndSize(error.pointer, error.length)); 
+			return NULL;
+		}
+		out_string = PyString_FromStringAndSize(out->pointer, out->length);
+		free((void *)out);
+		return out_string;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "A single string argument is required.");
+		return NULL;
+	}
+}
+
+static PyObject *translate_to_ascii16(PyObject *self, PyObject *positional_args)
+	{ return translate_to_from_ascii16(self, positional_args, luxem_to_ascii16); }
+
+static PyObject *translate_from_ascii16(PyObject *self, PyObject *positional_args)
+	{ return translate_to_from_ascii16(self, positional_args, luxem_from_ascii16); }
+
 static PyMethodDef luxem_methods[] = 
 {
+	{"to_ascii16", (PyCFunction)translate_to_ascii16, METH_VARARGS, "Encode ascii16."},
+	{"from_ascii16", (PyCFunction)translate_from_ascii16, METH_VARARGS, "Decode ascii16."},
 	{NULL}
 };
 
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
-PyMODINIT_FUNC initluxem(void) 
+PyMODINIT_FUNC init_luxem(void) 
 {
 	PyObject* module;
 
 	if (!ReaderType_init()) return;
 	if (!WriterType_init()) return;
 
-	module = Py_InitModule3("luxem", luxem_methods, "Module for reading and writing luxem encoded data.");
+	module = Py_InitModule3("_luxem", luxem_methods, "luxem C API internal-use module.");
 
 	Py_INCREF(&ReaderType);
 	PyModule_AddObject(module, "Reader", (PyObject *)&ReaderType);

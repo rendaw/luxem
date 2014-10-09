@@ -10,11 +10,17 @@
 #define CONTEXT context
 #define DATA_ARGS struct luxem_string_t const *data, size_t *eaten
 #define DATA data, eaten
-#define STATE_ARGS CONTEXT_ARGS, DATA_ARGS
-#define STATE CONTEXT, DATA
+#define STATE_ARGS CONTEXT_ARGS, DATA_ARGS, luxem_bool_t finish
+#define STATE CONTEXT, DATA, finish
 
 #define STATE_PROTO(name) \
 	static enum result_t name(STATE_ARGS)
+
+#define SET_ERROR_TARGET(message, target) \
+	do { \
+	target->pointer = message; \
+	target->length = sizeof(message) - 1; \
+	} while(0)
 
 #define SET_ERROR(message) \
 	context->error.pointer = message; \
@@ -194,10 +200,24 @@ enum result_t read_word(STATE_ARGS, struct luxem_string_t *out)
 	luxem_bool_t escaped = luxem_false;
 	while (luxem_true)
 	{
-		if (!can_eat_one(DATA)) break;
+		if (!can_eat_one(DATA)) 
+		{
+			if (finish)
+			{
+				out->pointer = data->pointer + start;
+				out->length = *eaten - start;
+				return result_continue;
+			}
+			break;
+		}
 		{
 			char const next = taste_one(DATA);
-			if (escaped)
+			if (next == '\\') 
+			{
+				eat_one(DATA);
+				escaped = luxem_true;
+			}
+			else if (escaped)
 			{
 				eat_one(DATA);
 				escaped = luxem_false;
@@ -223,10 +243,8 @@ enum result_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out)
 		if (!can_eat_one(DATA)) break;
 		{
 			char const next = eat_one(DATA);
-			if (escaped)
-			{
-				escaped = luxem_false;
-			}
+			if (next == '\\') escaped = luxem_true;
+			else if (escaped) escaped = luxem_false;
 			else if (next == delimiter)
 			{
 				out->pointer = data->pointer + start;
@@ -316,7 +334,8 @@ STATE_PROTO(state_value)
 			if (!can_eat_one(DATA)) return result_hungry;
 			if (taste_one(DATA) == '}') PUSH_STATE(state_object_next);
 			else { if (!push_object_state(CONTEXT)) return result_error; }
-			call_void_callback(context, context->callbacks.object_begin);
+			if (!call_void_callback(context, context->callbacks.object_begin))
+				return result_error;
 			break;
 		case '[': 
 			eat_one(DATA);
@@ -324,7 +343,8 @@ STATE_PROTO(state_value)
 			if (!can_eat_one(DATA)) return result_hungry;
 			if (taste_one(DATA) == ']') PUSH_STATE(state_array_next);
 			else { if (!push_array_state(CONTEXT)) return result_error; }
-			call_void_callback(context, context->callbacks.array_begin);
+			if (!call_void_callback(context, context->callbacks.array_begin))
+				return result_error;
 			break;
 		default: 
 			PUSH_STATE(state_primitive);
@@ -382,7 +402,8 @@ STATE_PROTO(state_object_next)
 		if (next == '}')
 		{
 			eat_one(DATA);
-			call_void_callback(context, context->callbacks.object_end);
+			if (!call_void_callback(context, context->callbacks.object_end))
+				return result_error;
 		}
 		else { if (!push_object_state(CONTEXT)) return result_error; }
 
@@ -422,7 +443,8 @@ STATE_PROTO(state_array_next)
 		if (next == ']')
 		{
 			eat_one(DATA);
-			call_void_callback(context, context->callbacks.array_end);
+			if (!call_void_callback(context, context->callbacks.array_end))
+				return result_error;
 		}
 		else { if (!push_array_state(CONTEXT)) return result_error; }
 
@@ -474,7 +496,7 @@ struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(CONTEXT_ARGS)
 	return &context->callbacks;
 }
 
-luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data, size_t *out_eaten)
+luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data, size_t *out_eaten, luxem_bool_t finish)
 {
 	if (context->error.pointer) return luxem_false;
 #ifndef NDEBUG
@@ -533,5 +555,47 @@ struct luxem_string_t *luxem_rawread_get_error(CONTEXT_ARGS)
 size_t luxem_rawread_get_position(CONTEXT_ARGS)
 {
 	return context->eaten_absolute;
+}
+
+struct luxem_string_t const *luxem_from_ascii16(struct luxem_string_t const *data, struct luxem_string_t *error)
+{
+	assert(data);
+	if (data->length % 2 != 0)
+	{
+		SET_ERROR_TARGET("Bad ascii16 data - length must be a multiple of 2.", error);
+		return 0;
+	}
+	{
+		size_t const new_length = data->length >> 1;
+		struct luxem_string_t *out = malloc(sizeof(struct luxem_string_t) + new_length);
+		if (!out) 
+		{
+			SET_ERROR_TARGET("Failed to allocate output memory", error);
+			return 0;
+		}
+		out->length = data->length >> 1;
+		{
+			int index;
+			char *cursor = (char *)out + sizeof(struct luxem_string_t);
+			out->pointer = cursor;
+			for (index = 0; index < new_length; ++index)
+			{
+				unsigned char const high = (unsigned char)data->pointer[index * 2] - (unsigned char)'a';
+				unsigned char const low = (unsigned char)data->pointer[index * 2 + 1] - (unsigned char)'a';
+				if ((high >= 16) ||
+					(low >= 16))
+				{
+					SET_ERROR_TARGET("Bad ascii16 data - encountered character outside set [abcdefghijklmnop].", error);
+					goto error_return;
+				}
+				*(cursor++) = (high << 4) + low;
+			}
+			assert(cursor == out->pointer + new_length);
+		}
+		return out;
+error_return:
+		free(out);
+		return 0;
+	}
 }
 

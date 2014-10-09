@@ -21,7 +21,6 @@ luxem_bool_t is_word_char(char value)
 		case '[':
 		case ']':
 		case '"':
-		case '\\':
 			return luxem_false;
 		default: return luxem_true;
 	}
@@ -55,7 +54,6 @@ struct luxem_string_t const *slash(struct luxem_string_t const *string, char con
 				++quotes_and_slashes;
 		}
 	}
-	printf("found %lu slashes\n", quotes_and_slashes);
 	if (quotes_and_slashes == 0) return 0;
 	else
 	{
