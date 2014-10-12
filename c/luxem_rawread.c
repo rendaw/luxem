@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#if 0
+#define TRACE printf("TRACE: %s\n", __func__)
+#else
+#define TRACE do {} while (luxem_false)
+#endif
+
 #define CONTEXT_ARGS struct luxem_rawread_context_t *context
 #define CONTEXT context
 #define DATA_ARGS struct luxem_string_t const *data, size_t *eaten
@@ -190,7 +196,9 @@ void eat_whitespace(DATA_ARGS)
 
 STATE_PROTO(state_whitespace)
 {
+	TRACE;
 	eat_whitespace(DATA);
+	if (!finish && !can_eat_one(DATA)) return result_hungry;
 	return result_continue;
 }
 
@@ -258,6 +266,7 @@ enum result_t read_words(STATE_ARGS, char delimiter, struct luxem_string_t *out)
 
 STATE_PROTO(state_type)
 {
+	TRACE;
 	struct luxem_string_t type;
 	enum result_t result = read_words(STATE, ')', &type);
 	if (result == result_continue)
@@ -298,16 +307,19 @@ enum result_t read_primitive(STATE_ARGS, luxem_bool_t const key)
 
 STATE_PROTO(state_primitive)
 {
+	TRACE;
 	return read_primitive(STATE, luxem_false);
 }
 
 STATE_PROTO(state_key)
 {
+	TRACE;
 	return read_primitive(STATE, luxem_true);
 }
 
 STATE_PROTO(state_value_phrase)
 {
+	TRACE;
 	if (!can_eat_one(DATA)) return result_hungry;
 	
 	PUSH_STATE(state_value);
@@ -324,6 +336,7 @@ STATE_PROTO(state_value_phrase)
 
 STATE_PROTO(state_value)
 {
+	TRACE;
 	if (!can_eat_one(DATA)) return result_hungry;
 
 	switch (taste_one(DATA))
@@ -368,6 +381,7 @@ luxem_bool_t push_object_state(CONTEXT_ARGS)
 
 STATE_PROTO(state_key_separator)
 {
+	TRACE;
 	if (!can_eat_one(DATA)) return result_hungry;
 
 	if (taste_one(DATA) != ':')
@@ -381,6 +395,7 @@ STATE_PROTO(state_key_separator)
 
 STATE_PROTO(state_object_next)
 {
+	TRACE;
 	if (!can_eat_one(DATA)) return result_hungry;
 
 	{
@@ -422,6 +437,7 @@ luxem_bool_t push_array_state(CONTEXT_ARGS)
 
 STATE_PROTO(state_array_next)
 {
+	TRACE;
 	if (!can_eat_one(DATA)) return result_hungry;
 
 	{
@@ -516,7 +532,10 @@ luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data,
 			{
 				enum result_t result = node->state(STATE);
 
-				if (result == result_hungry) break;
+				if (result == result_hungry) 
+				{
+					break;
+				}
 
 				if (result == result_error) 
 				{
@@ -545,6 +564,64 @@ luxem_bool_t luxem_rawread_feed(CONTEXT_ARGS, struct luxem_string_t const *data,
 	}
 
 	return luxem_true;
+}
+
+luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FILE *file, luxem_rawread_void_callback_t block_callback, luxem_rawread_void_callback_t unblock_callback)
+{
+	assert(file);
+	{
+		size_t start = 0;
+		size_t stop = 0;
+		struct luxem_buffer_t buffer;
+		struct luxem_string_t string;
+
+		luxem_buffer_construct(&buffer);
+
+		while (luxem_true)
+		{
+			if (stop + LUXEM_BUFFER_BLOCK_SIZE > buffer.allocated)
+			{
+				size_t deficit = stop + LUXEM_BUFFER_BLOCK_SIZE - buffer.allocated;
+				if (!luxem_buffer_resize(&buffer, start, deficit))
+					return luxem_false;
+				stop -= start;
+				start = 0;
+			}
+
+			{
+				if (block_callback) block_callback(context, context->callbacks.user_data);
+				size_t increment = fread(buffer.pointer + stop, 1, LUXEM_BUFFER_BLOCK_SIZE, file);
+				if (unblock_callback) unblock_callback(context, context->callbacks.user_data);
+				luxem_bool_t finish = increment == 0;
+				if (finish && ferror(file))
+				{
+					SET_ERROR("Encountered error while reading file.");
+					luxem_buffer_destroy(&buffer);
+					return luxem_false;
+				}
+
+				stop += increment;
+
+				string.pointer = buffer.pointer + start;
+				string.length = stop - start;
+
+				increment = 0;
+				if (!luxem_rawread_feed(context, &string, &increment, finish))
+				{
+					luxem_buffer_destroy(&buffer);
+					return luxem_false;
+				}
+
+				start += increment;
+
+				if (finish)
+				{
+					luxem_buffer_destroy(&buffer);
+					return luxem_true;
+				}
+			}
+		}
+	}
 }
 
 struct luxem_string_t *luxem_rawread_get_error(CONTEXT_ARGS)

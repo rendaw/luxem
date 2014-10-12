@@ -22,6 +22,7 @@ typedef struct {
 	PyObject *key;
 	PyObject *type;
 	PyObject *primitive;
+	PyThreadState *thread_state;
 } Reader;
 
 #define TRANSLATE_VOID_CALLBACK(name) \
@@ -103,6 +104,7 @@ static PyObject *Reader_new(PyTypeObject *type, PyObject *positional_args, PyObj
 		self->key = NULL;
 		self->type = NULL;
 		self->primitive = NULL;
+		self->thread_state = NULL;
 	}
 
 	return (PyObject *)self;
@@ -160,6 +162,52 @@ static void Reader_dealloc(Reader *self)
 	self->ob_type->tp_free((PyObject*)self);
 }
 
+void format_context_error(struct luxem_rawread_context_t *context)
+{
+	if (luxem_rawread_get_error(context)->pointer != &exception_marker)
+	{
+		assert(luxem_rawread_get_error(context)->length > 0);
+		{
+			struct luxem_string_t const *error = luxem_rawread_get_error(context);
+			char const *error_format = "%.*s [offset %lu]";
+			int formatted_error_size = snprintf(NULL, 0, error_format, error->length, error->pointer, luxem_rawread_get_position(context));
+			assert(formatted_error_size >= 0);
+			if (formatted_error_size < 0)
+			{
+				PyErr_SetString(PyExc_ValueError, "Encountered an exception, then encountered an error while trying to format the exception.");
+			}
+			else
+			{
+				formatted_error_size += 1; /* Was returning one too small */
+				{
+					char *formatted_error = malloc(formatted_error_size);
+					snprintf(formatted_error, formatted_error_size, error_format, error->length, error->pointer, luxem_rawread_get_position(context));
+					PyErr_SetString(PyExc_ValueError, formatted_error);
+					free(formatted_error);
+				}
+			}
+		}
+	}
+	else
+	{
+		/* Pass through python exception */
+		assert(luxem_rawread_get_error(context)->length == 0);
+	}
+}
+
+void feed_unlock_gil(struct luxem_rawread_context_t *context, Reader *self)
+{
+	assert(!self->thread_state);
+	self->thread_state = PyEval_SaveThread();
+}
+
+void feed_lock_gil(struct luxem_rawread_context_t *context, Reader *self)
+{
+	assert(self->thread_state);
+	PyEval_RestoreThread(self->thread_state);
+	self->thread_state = NULL;
+}
+
 static PyObject *Reader_feed(Reader *self, PyObject *positional_args, PyObject *named_args)
 {
 	PyObject *data;
@@ -189,43 +237,31 @@ static PyObject *Reader_feed(Reader *self, PyObject *positional_args, PyObject *
 
 		if (!luxem_rawread_feed(self->context, &string, &eaten, finish))
 		{
-			if (luxem_rawread_get_error(self->context)->pointer != &exception_marker)
-			{
-				assert(luxem_rawread_get_error(self->context)->length > 0);
-				{
-					struct luxem_string_t const *error = luxem_rawread_get_error(self->context);
-					char const *error_format = "%.*s [offset %lu]";
-					int formatted_error_size = snprintf(NULL, 0, error_format, error->length, error->pointer, luxem_rawread_get_position(self->context));
-					assert(formatted_error_size >= 0);
-					if (formatted_error_size < 0)
-					{
-						PyErr_SetString(PyExc_ValueError, "Encountered an exception, then encountered an error while trying to format the exception.");
-					}
-					else
-					{
-						formatted_error_size += 1; /* Was returning one too small */
-						{
-							char *formatted_error = malloc(formatted_error_size);
-							snprintf(formatted_error, formatted_error_size, error_format, error->length, error->pointer, luxem_rawread_get_position(self->context));
-							PyErr_SetString(PyExc_ValueError, formatted_error);
-							free(formatted_error);
-						}
-					}
-				}
-			}
-			else
-			{
-				/* Pass through python exception */
-				assert(luxem_rawread_get_error(self->context)->length == 0);
-			}
+			format_context_error(self->context);
 			return NULL;
 		}
 		
 		return PyInt_FromSize_t(eaten);
 	}
+	else if (PyFile_Check(data))
+	{
+		luxem_bool_t success;
+		FILE *file = PyFile_AsFile(data);
+		PyFile_IncUseCount((PyFileObject *)data);
+		success = luxem_rawread_feed_file(self->context, file, feed_unlock_gil, feed_lock_gil);
+		PyFile_DecUseCount((PyFileObject *)data);
+		if (!success)
+		{
+			format_context_error(self->context);
+			return NULL;
+		}
+
+		Py_INCREF(Py_None);
+		return Py_None;
+	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "luxem.RawReader.feed requires a single string argument.");
+		PyErr_SetString(PyExc_TypeError, "luxem.RawReader.feed requires a single string or file argument.");
 		return NULL;
 	}
 }

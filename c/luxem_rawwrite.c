@@ -151,7 +151,7 @@ static luxem_bool_t pop_state(struct luxem_rawwrite_context_t *context)
 	{
 		case state_object:
 		case state_array:
-			assert(context->indentation > 1);
+			assert(context->indentation >= 1);
 			--context->indentation;
 			break;
 		default: break;
@@ -347,8 +347,8 @@ struct luxem_string_t const *luxem_to_ascii16(struct luxem_string_t const *data,
 			out->length = new_length;
 			for (index = 0; index < data->length; ++index)
 			{
-				assert((unsigned char)(data->pointer[index] >> 4) < 16);
-				assert((unsigned char)(data->pointer[index] & 0x0F) < 16);
+				assert(((unsigned char)data->pointer[index] >> 4) < 16);
+				assert(((unsigned char)data->pointer[index] & 0x0F) < 16);
 				*(cursor++) = (unsigned char)'a' + ((unsigned char)data->pointer[index] >> 4);
 				*(cursor++) = (unsigned char)'a' + ((unsigned char)data->pointer[index] & 0x0F);
 			}
