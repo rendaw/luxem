@@ -3,6 +3,8 @@
 
 #include "luxem_common.h"
 
+#include <stdio.h>
+
 struct luxem_rawwrite_context_t;
 
 typedef luxem_bool_t (*luxem_rawwrite_write_callback_t)(struct luxem_rawwrite_context_t *context, void *user_data, struct luxem_string_t const *string);
@@ -10,6 +12,9 @@ typedef luxem_bool_t (*luxem_rawwrite_write_callback_t)(struct luxem_rawwrite_co
 struct luxem_rawwrite_context_t *luxem_rawwrite_construct(void);
 void luxem_rawwrite_destroy(struct luxem_rawwrite_context_t *context);
 void luxem_rawwrite_set_write_callback(struct luxem_rawwrite_context_t *context, luxem_rawwrite_write_callback_t callback, void *user_data);
+void luxem_rawwrite_set_file_out(struct luxem_rawwrite_context_t *context, FILE *file);
+luxem_bool_t luxem_rawwrite_set_buffer_out(struct luxem_rawwrite_context_t *context);
+struct luxem_string_t *luxem_rawwrite_buffer_render(struct luxem_rawwrite_context_t *context);
 void luxem_rawwrite_set_pretty(struct luxem_rawwrite_context_t *context, char spacer, size_t multiple);
 struct luxem_string_t *luxem_rawwrite_get_error(struct luxem_rawwrite_context_t *context);
 

@@ -301,6 +301,7 @@ typedef struct {
 	PyObject_HEAD
 	struct luxem_rawwrite_context_t *context;
 	PyObject *write;
+	PyObject *file;
 } Writer;
 
 static luxem_bool_t translate_rawwrite_write(struct luxem_rawwrite_context_t *context, Writer *user_data, struct luxem_string_t const *string)
@@ -334,9 +335,8 @@ static PyObject *Writer_new(PyTypeObject *type, PyObject *positional_args, PyObj
 			return NULL;
 		}
 
-		luxem_rawwrite_set_write_callback(self->context, (luxem_rawwrite_write_callback_t)translate_rawwrite_write, self);
-
 		self->write = NULL;
+		self->file = NULL;
 	}
 
 	return (PyObject *)self;
@@ -350,6 +350,7 @@ static int Writer_init(Writer *self, PyObject *positional_args, PyObject *named_
 	static char *named_args_list[] = 
 	{
 		"write_callback", 
+		"write_file",
 		"pretty", 
 		"use_spaces", 
 		"indent_multiple",
@@ -359,15 +360,29 @@ static int Writer_init(Writer *self, PyObject *positional_args, PyObject *named_
 	if (!PyArg_ParseTupleAndKeywords(
 		positional_args, 
 		named_args, 
-		"O|bbi", 
+		"|OObbi", 
 		named_args_list, 
 		&self->write, 
+		&self->file,
 		&pretty,
 		&use_spaces,
 		&indent_multiple))
 		return -1; 
 
-	Py_INCREF(self->write);
+	if (self->write)
+	{
+		Py_INCREF(self->write);
+		luxem_rawwrite_set_write_callback(self->context, (luxem_rawwrite_write_callback_t)translate_rawwrite_write, self);
+	}
+
+	if (self->file)
+	{
+		Py_INCREF(self->file);
+		luxem_rawwrite_set_file_out(self->context, PyFile_AsFile(self->file));
+	}
+
+	if (!self->write && !self->file)
+		luxem_rawwrite_set_buffer_out(self->context);
 
 	if (pretty)
 		luxem_rawwrite_set_pretty(self->context, use_spaces ? ' ' : '\t', indent_multiple);
@@ -378,7 +393,8 @@ static int Writer_init(Writer *self, PyObject *positional_args, PyObject *named_
 static void Writer_dealloc(Writer *self)
 {
 	luxem_rawwrite_destroy(self->context);
-	Py_DECREF(self->write);
+	Py_XDECREF(self->write);
+	Py_XDECREF(self->file);
 	self->ob_type->tp_free((PyObject*)self);
 }
 
@@ -454,8 +470,32 @@ static PyObject *Writer_key(Writer *self, PyObject *positional_args)
 	{ return translate_string_method(self, positional_args, luxem_rawwrite_key, "luxem.RawWriter.key requires a single string argument."); }
 static PyObject *Writer_type(Writer *self, PyObject *positional_args) 
 	{ return translate_string_method(self, positional_args, luxem_rawwrite_type, "luxem.RawWriter.type requires a single string argument."); }
-static PyObject *Writer_primitive(Writer *self, PyObject *positional_args) 
+static PyObject *Writer_primitive(Writer *self, PyObject *positional_args)
 	{ return translate_string_method(self, positional_args, luxem_rawwrite_primitive, "luxem.RawWriter.primitive requires a single string argument."); }
+
+static PyObject *Writer_dump(Writer *self)
+{
+	if (self->write || self->file)
+	{
+		PyErr_SetString(PyExc_TypeError, "luxem.RawWriter.dump can only be used if not using a custom serialize callback for serializing to file.");
+		return NULL;
+	}
+	else
+	{
+		struct luxem_string_t *rendered = luxem_rawwrite_buffer_render(self->context);
+		if (!rendered)
+		{
+				struct luxem_string_t const *error = luxem_rawwrite_get_error(self->context); 
+				assert(error->length > 0); 
+				PyErr_SetObject(PyExc_ValueError, PyString_FromStringAndSize(error->pointer, error->length)); 
+				return NULL;
+		}
+
+		PyObject *out = PyString_FromStringAndSize(rendered->pointer, rendered->length);
+		free(rendered);
+		return out;
+	}
+}
 
 static PyMethodDef Writer_methods[] = 
 {
@@ -466,6 +506,7 @@ static PyMethodDef Writer_methods[] =
 	{"key", (PyCFunction)Writer_key, METH_VARARGS, "Write a key."},
 	{"type", (PyCFunction)Writer_type, METH_VARARGS, "Write a type."},
 	{"primitive", (PyCFunction)Writer_primitive, METH_VARARGS, "Write a primitive."},
+	{"dump", (PyCFunction)Writer_dump, METH_NOARGS, "If serializing to a buffer, returns all rendered data so far."},
 	{NULL}
 };
 

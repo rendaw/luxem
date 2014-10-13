@@ -118,39 +118,3 @@ struct luxem_string_t const *unslash(struct luxem_string_t const *string)
 	}
 }
 
-luxem_bool_t luxem_buffer_construct(struct luxem_buffer_t *buffer)
-{
-	buffer->allocated = LUXEM_BUFFER_BLOCK_SIZE * 2;
-	buffer->pointer = malloc(buffer->allocated);
-	return buffer->pointer == 0 ? luxem_false : luxem_true;
-}
-
-luxem_bool_t luxem_buffer_resize(struct luxem_buffer_t *buffer, size_t trim_front, size_t expand)
-{
-	assert(trim_front <= buffer->allocated);
-	if (expand < trim_front)
-	{
-		memmove(buffer->pointer, buffer->pointer + trim_front, buffer->allocated - trim_front);
-	}
-	else
-	{
-		size_t new_length = buffer->allocated * 2;
-		char *out = malloc(new_length);
-		if (!out) 
-		{
-			free(buffer->pointer);
-			return luxem_false;
-		}
-		memcpy(out, buffer->pointer + trim_front, buffer->allocated - trim_front);
-		free(buffer->pointer);
-		buffer->pointer = out;
-		buffer->allocated = new_length;
-	}
-	return luxem_true;
-}
-
-void luxem_buffer_destroy(struct luxem_buffer_t *buffer)
-{
-	free(buffer->pointer);
-}
-

@@ -52,10 +52,15 @@ enum result_t
 	result_hungry
 };
 
+struct luxem_rawread_buffer_t;
+
 struct stack_t;
 
 typedef enum result_t (*state_signature_t)(STATE_ARGS);
 
+luxem_bool_t luxem_rawread_buffer_construct(struct luxem_rawread_buffer_t *buffer);
+luxem_bool_t luxem_rawread_buffer_resize(struct luxem_rawread_buffer_t *buffer, size_t trim_front, size_t expand);
+void luxem_rawread_buffer_destroy(struct luxem_rawread_buffer_t *buffer);
 static luxem_bool_t call_void_callback(CONTEXT_ARGS, luxem_rawread_void_callback_t callback);
 static luxem_bool_t call_string_callback(CONTEXT_ARGS, luxem_rawread_string_callback_t callback, struct luxem_string_t const *string);
 static luxem_bool_t can_eat_one(DATA_ARGS);
@@ -80,6 +85,12 @@ STATE_PROTO(state_object_next);
 static luxem_bool_t push_array_state(CONTEXT_ARGS);
 STATE_PROTO(state_array_next);
 
+struct luxem_rawread_buffer_t
+{
+	size_t allocated;
+	char *pointer;
+};
+
 struct stack_t
 {
 	state_signature_t state;
@@ -93,6 +104,42 @@ struct luxem_rawread_context_t
 	struct stack_t *state_top;
 	struct luxem_rawread_callbacks_t callbacks;
 };
+
+luxem_bool_t luxem_rawread_buffer_construct(struct luxem_rawread_buffer_t *buffer)
+{
+	buffer->allocated = LUXEM_BUFFER_BLOCK_SIZE * 2;
+	buffer->pointer = malloc(buffer->allocated);
+	return buffer->pointer == 0 ? luxem_false : luxem_true;
+}
+
+luxem_bool_t luxem_rawread_buffer_resize(struct luxem_rawread_buffer_t *buffer, size_t trim_front, size_t expand)
+{
+	assert(trim_front <= buffer->allocated);
+	if (expand < trim_front)
+	{
+		memmove(buffer->pointer, buffer->pointer + trim_front, buffer->allocated - trim_front);
+	}
+	else
+	{
+		size_t new_length = buffer->allocated * 2;
+		char *out = malloc(new_length);
+		if (!out) 
+		{
+			free(buffer->pointer);
+			return luxem_false;
+		}
+		memcpy(out, buffer->pointer + trim_front, buffer->allocated - trim_front);
+		free(buffer->pointer);
+		buffer->pointer = out;
+		buffer->allocated = new_length;
+	}
+	return luxem_true;
+}
+
+void luxem_rawread_buffer_destroy(struct luxem_rawread_buffer_t *buffer)
+{
+	free(buffer->pointer);
+}
 
 luxem_bool_t call_void_callback(CONTEXT_ARGS, luxem_rawread_void_callback_t callback)
 {
@@ -572,17 +619,17 @@ luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FI
 	{
 		size_t start = 0;
 		size_t stop = 0;
-		struct luxem_buffer_t buffer;
+		struct luxem_rawread_buffer_t buffer;
 		struct luxem_string_t string;
 
-		luxem_buffer_construct(&buffer);
+		luxem_rawread_buffer_construct(&buffer);
 
 		while (luxem_true)
 		{
 			if (stop + LUXEM_BUFFER_BLOCK_SIZE > buffer.allocated)
 			{
 				size_t deficit = stop + LUXEM_BUFFER_BLOCK_SIZE - buffer.allocated;
-				if (!luxem_buffer_resize(&buffer, start, deficit))
+				if (!luxem_rawread_buffer_resize(&buffer, start, deficit))
 					return luxem_false;
 				stop -= start;
 				start = 0;
@@ -596,7 +643,7 @@ luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FI
 				if (finish && ferror(file))
 				{
 					SET_ERROR("Encountered error while reading file.");
-					luxem_buffer_destroy(&buffer);
+					luxem_rawread_buffer_destroy(&buffer);
 					return luxem_false;
 				}
 
@@ -608,7 +655,7 @@ luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FI
 				increment = 0;
 				if (!luxem_rawread_feed(context, &string, &increment, finish))
 				{
-					luxem_buffer_destroy(&buffer);
+					luxem_rawread_buffer_destroy(&buffer);
 					return luxem_false;
 				}
 
@@ -616,7 +663,7 @@ luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FI
 
 				if (finish)
 				{
-					luxem_buffer_destroy(&buffer);
+					luxem_rawread_buffer_destroy(&buffer);
 					return luxem_true;
 				}
 			}
