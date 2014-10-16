@@ -1,6 +1,7 @@
+import base64
+
 import _luxem
 import struct
-from processors import *
 
 def _read_struct_element_object(element, callback, type_name=None):
     value = {}
@@ -92,7 +93,7 @@ class Reader(_luxem.Reader):
             self._callbacks[key] = lambda element: callback(process_object(element))
 
         def array(self, key, callback):
-            self._callbacks[key] = lambda element: process_array(element, callback)
+            self._callbacks[key] = lambda element: callback(process_array(element))
 
         def element(self, key, callback, processor=None):
             def element_callback(element):
@@ -143,7 +144,7 @@ class Reader(_luxem.Reader):
         def finished(self, callback):
             self._finish_callback = callback
 
-    def __init__(self, translate_types=True):
+    def __init__(self):
         self._stack = [Reader.Array()]
         self._current_key = None
         self._current_type = None
@@ -196,4 +197,114 @@ class Reader(_luxem.Reader):
     def _pop(self):
         self._stack[-1]._finish()
         self._stack.pop()
+
+def process_typed_bool(element):
+    return False if element.lower() in ['0', 'false', 'no'] else True
+
+def process_bool(element):
+    if isinstance(element, struct.Typed):
+        if element.name not in ['bool']:
+            raise ValueError('Expected bool but got typed {}'.format(element.name))
+        return process_typed_bool(element.value)
+    else:
+        return process_typed_bool(element)
+
+def process_typed_int(element):
+    return int(element)
+
+def process_int(element):
+    if isinstance(element, struct.Typed):
+        if element.name not in ['int']:
+            raise ValueError('Expected int but got typed {}'.format(element.name))
+        return process_typed_int(element.value)
+    else:
+        return process_typed_int(element)
+
+def process_typed_float(element):
+    return float(element)
+
+def process_float(element):
+    if isinstance(element, struct.Typed):
+        if element.name not in ['float']:
+            raise ValueError('Expected float but got typed {}'.format(element.name))
+        return process_typed_float(element.value)
+    else:
+        return process_typed_float(element)
+
+def process_typed_string(element):
+    return element.value
+
+def process_string(element):
+    if isinstance(element, struct.Typed):
+        if element.name not in ['string']:
+            raise ValueError('Expected string but got typed {}'.format(element.name))
+        process_typed_string(element.value)
+    else:
+        process_typed_string(element)
+
+def process_typed_base64(element):
+    return base64.b64decode(element)
+
+def process_base64(element):
+    if isinstance(element, struct.Typed):
+        return process_typed_base64(element.value)
+    else:
+        return process_typed_base64(element)
+
+def process_typed_ascii16(element):
+    return _luxem.from_ascii16(element)
+
+def process_ascii16(element):
+    if isinstance(element, struct.Typed):
+        return process_typed_ascii16(element.value)
+    else:
+        return process_typed_ascii16(element)
+
+def process_bytes(element):
+    if isinstance(element, struct.Typed):
+        if element.name == 'ascii16':
+            return process_typed_ascii16(element.value)
+        elif element.name == 'base64':
+            return process_typed_base64(element.value)
+        else:
+            raise ValueError('Expected bytes but got typed {}'.format(element.name))
+    else:
+        raise ValueError('Expected types but no value type specified.')
+
+def process_object(element):
+    if isinstance(element, struct.Typed):
+        if not isinstace(element.value, Reader.Object):
+            raise ValueError('Expected object but got {}'.format(type(element.value)))
+    else:
+        if not isinstance(element, Reader.Object):
+            raise ValueError('Expected object but got {}'.format(type(element)))
+    return element
+
+def process_array(element):
+    if isinstance(element, struct.Typed):
+        if not isinstace(element.value, Reader.Array):
+            raise ValueError('Expected array but got {}'.format(type(element.value)))
+    else:
+        if not isinstance(element, Reader.Array):
+            raise ValueError('Expected array but got {}'.format(type(element)))
+    return element
+
+_process_any_lookup = {
+    'bool': process_typed_bool,
+    'int': process_typed_int,
+    'float': process_typed_float,
+    'string': process_typed_string,
+    'ascii16': process_typed_ascii16,
+    'base64': process_typed_base64,
+    'bytes': process_bytes,
+    'array': process_array,
+    'object': process_object,
+}
+
+def process_any(element):
+    if isinstance(element, struct.Typed):
+        processor = _process_any_lookup.get(element.name)
+        if processor:
+            return processor(element.value)
+    return element
 

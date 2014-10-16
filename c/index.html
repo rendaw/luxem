@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>luxem C</title>
+	<style type="text/css">
+body { margin: 0px; padding: 0px; font-family: sans; }
+
+body > h1 { padding-left: 1em; }
+body > p { padding-left: 1em; }
+body > div > h1 { padding-top: 1em; padding-left: 0.5em; font-size: 1.75em; border-bottom: 1px solid black; }
+div { padding-right: 0.5em; padding-left: 0.5em; }
+div.class { padding-left: 1em; }
+div.class > h1 { font-size: 1.5em; }
+div.method { padding-left: 3em; padding-bottom: 1em; }
+div.method > h1 { font-size: 1.2em; margin-left: -1.5em; font-family: monospace; }
+div.method > h2 { font-size: 1.1em; font-weight: normal; }
+pre { border-left: 1px solid grey; padding-left: 0.5em; margin-left: 0.2em; background-color: #F0F0F0; }
+span.pre { font-family: monospace; font-size: 1.2em; color: #2080A0; }
+	</style>
+</head>
+<body>
+
+<h1>luxem C Documentation</h1>
+<p>Table of contents:</p>
+<ul>
+	<li><a href="#examples">Examples</a></li>
+	<li>
+		<a href="#api">API</a>
+		<ul>
+			<li><a href="#luxem_common_h">luxem_common.h</a></li>
+			<li><a href="#luxem_rawread_h">luxem_rawread.h</a></li>
+			<li><a href="#luxem_rawwrite_h">luxem_rawwrite.h</a></li>
+		</ul>
+	</li>
+</ul>
+
+<div>
+	<a name="api">
+	<h1>API</h1>
+	<div class="class">
+		<a name="luxem_common_h">
+		<h1>luxem_common.h</h1>
+		<div class="method">
+			<h1>#define luxem_bool_t int</h1>
+			<p>Standard boolean type.  This is used consistently throughout the interface.</p>
+			<p>Compatible with standard C boolean expressions.</p>
+		</div>
+		<div class="method">
+			<h1>#define luxem_true 1</h1>
+		</div>
+		<div class="method">
+			<h1>#define luxem_false 0</h1>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t
+{
+	char const *pointer;
+	size_t length;
+};</h1>
+			<p>This represents a delineation of memory that contains string or binary sequeynce.  This library performs minimal copying, so this will frequently be a subsection of a larger allocation of memory.</p>
+			<p>Strings can be modified to point to other memory locations and lengths, but the data may not be modified and <span class="pre">pointer</span> should not be freed.</p>
+			<p>Pointers to <span class="pre">luxem_string_t</span> will never be stored and can be safely stack allocated.  Ownership stays with the allocator except when indicated elsewise.</p>
+		</div>
+		<div class="method">
+			<h1>#define luxem_print_string(string, stream) ...</h1>
+			<p>Prints a string to stdout - primarily a debugging aid.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_rawread_h">
+		<h1>luxem_rawread.h</h1>
+		<div class="method">
+			<h1>typedef luxem_bool_t (*luxem_rawread_void_callback_t)(struct luxem_rawread_context_t *context, void *user_data);</h1>
+			<p>A callback that receives no unique argument.  <span class="pre">user_data</span> is the value set for <span class="pre">user_data</span> in the reader's <span class="pre">luxem_rawread_callbacks_t</span> structure.  Return <span class="pre">luxem_false</span> to indicate an error was encountered during callback operation.</p>
+		</div>
+		<div class="method">
+			<h1>typedef luxem_bool_t (*luxem_rawread_string_callback_t)(struct luxem_rawread_context_t *context, void *user_data, struct luxem_string_t const *string);</h1>
+			<p>A callback that receives a string as an argument.  <span class="pre">user_data</span> is the value set for <span class="pre">user_data</span> in the reader's <span class="pre">luxem_rawread_callbacks_t</span> structure.  Return <span class="pre">luxem_false</span> to indicate an error was encountered during callback operation.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_rawread_callbacks_t
+{
+	luxem_rawread_void_callback_t 
+		object_begin, 
+		object_end, 
+		array_begin, 
+		array_end;
+	luxem_rawread_string_callback_t 
+		key, 
+		type, 
+		primitive;
+	void *user_data;
+	};</h1>
+			<p>Ths is the structure used internally by the reader to contain callbacks and user data for the callbacks.  All of the properties are writable by the user and will not be modified by the reader.  Any callback can be 0.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_rawread_context_t *luxem_rawread_construct(void);</h1>
+			<p>Allocates and prepares a new reader.  Returns the new reader.</p>
+		</div>
+		<div class="method">
+			<h1>void luxem_rawread_destroy(struct luxem_rawread_context_t *context);</h1>
+			<p>Destroys the reader and frees all associated memory.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_rawread_callbacks_t *luxem_rawread_callbacks(struct luxem_rawread_context_t *context);</h1>
+			<p>Returns a pointer to the reader's internal callbacks structure.  Use this to set read callbacks and user data before parsing.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawread_feed(struct luxem_rawread_context_t *context, struct luxem_string_t const *data, size_t *out_eaten, luxem_bool_t finish);</h1>
+			<p>Reads a document chunk provided in <span class="pre">data</span>, returning <span class="pre">luxem_true</span> if the read failed or <span class="pre">luxem_false</span> if an error was encountered.  Use <span class="pre">luxem_rawread_get_error</span> to retrieve the error in the case of a failure.</p>
+			<p><span class="pre">out_eaten</span> will be set to the offset in <span class="pre">data</span> that was successfully read.  Subsequent calls to <span class="pre">luxem_rawread_feed</span> should not include the data preceding the read offset.</p>
+			<p>If <span class="pre">finish</span> is set, the reader will attempt to finish the current state once all data has been read.  Use this if there is no more data to parse in the current document, or if you are sure that the current value has been provided in whole.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawread_feed_file(struct luxem_rawread_context_t *context, FILE *file, luxem_rawread_void_callback_t block_callback, luxem_rawread_void_callback_t unblock_callback);</h1>
+			<p>Reads the entire <span class="pre">file</span>, parsing the contents and finishing the parse when the end of the file is reached.  <span class="pre">block_callback</span>, if not 0, is called immediately before a blocking read is performed on <span class="pre">file</span>.  <span class="pre">unblock_callback</span>, if not 0, is called immediately after the blocking read on <span class="pre">file</span> completes.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t *luxem_rawread_get_error(struct luxem_rawread_context_t *context);</h1>
+			<p>Returns a pointer to the reader's internal error structure.  This pointer should not be freed by the caller.</p>
+			<p>This should be used to get information about an error if a reader function fails.</p>
+			<p>Alternatively, this can be used to set information in a user callback.  In this case, the call back should return <span class="pre">luxem_false</span> to indicate that the callback has failed and error has been set.  The user must set `pointer` and `length` on the returned string.</p>
+		</div>
+		<div class="method">
+			<h1>size_t luxem_rawread_get_position(struct luxem_rawread_context_t *context);</h1>
+			<p>Returns the number of characters read since the reader was constructed.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t const *luxem_from_ascii16(struct luxem_string_t const *data, struct luxem_string_t *error);</h1>
+			<p>Decodes a valid ascii16 chunk into a byte array (as a <span class="pre">luxem_string_t</span>) and returns it.  The caller is responsible for releasing the returned `luxem_string_t` with <span class="pre">free</span>.  If the function returns 0, <span class="pre">error</span> will contain an error message.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_rawwrite_h">
+		<h1>luxem_rawwrite.h</h1>
+		<div class="method">
+			<h1>typedef luxem_bool_t (*luxem_rawwrite_write_callback_t)(struct luxem_rawwrite_context_t *context, void *user_data, struct luxem_string_t const *string);</h1>
+			<p>A callback that receives a chunk of rendered luxem data for custom writing.</p>
+			<p>Return `luxem_false` and set the error using `luxem_rawwrite_get_error` to indicate an error has occurred.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_rawwrite_context_t *luxem_rawwrite_construct(void);</h1>
+			<p>Returns a new writer.  Before use, the writer must be configured with one of `luxem_rawwrite_set_write_callback`, `luxem_rawwrite_set_file_out`, or `luxem_rawwrite_set_buffer_out`.</p>
+		</div>
+		<div class="method">
+			<h1>void luxem_rawwrite_destroy(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Destroys and frees the writer.</p>
+		</div>
+		<div class="method">
+			<h1>void luxem_rawwrite_set_write_callback(struct luxem_rawwrite_context_t *context, luxem_rawwrite_write_callback_t callback, void *user_data);</h1>
+			<p>Configures the writer to pass all generated text to `callback`, along with `user_data`, a pointer to arbitrary data.</p>
+		</div>
+		<div class="method">
+			<h1>void luxem_rawwrite_set_file_out(struct luxem_rawwrite_context_t *context, FILE *file);</h1>
+			<p>Configures the writer to write all generated text to `file`.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_set_buffer_out(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Configures the writer to write all generated text to an internal buffer.  The written text can be accessed with `luxem_rawwrite_buffer_render`.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t *luxem_rawwrite_buffer_render(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Returns a string that contains all text generated by the writer.  This only works if the writer was configured with `luxem_rawwrite_set_buffer_out`.  Because the format of the internal buffer is unspecified, this function may perform taxing calculations.  The user must free the returned `luxem_string_t` after use with `free`.</p>
+		</div>
+		<div class="method">
+			<h1>void luxem_rawwrite_set_pretty(struct luxem_rawwrite_context_t *context, char spacer, size_t multiple);</h1>
+			<p>Enables prettification on output.  This typically involves new lines after values and indentation of all elements in a block.  `spacer` is the character to be used for indentation, and `multiple` specifies how many of `spacer` to use for each indentation level.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t *luxem_rawwrite_get_error(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Returns a pointer to the writer's internal error structure.  This pointer should not be freed by the caller.</p>
+			<p>This should be used to get information about an error if a writer function fails.</p>
+			<p>Alternatively, this can be used to set information in a user callback.  In this case, the call back should return <span class="pre">luxem_false</span> to indicate that the callback has failed and error has been set.  The user must set `pointer` and `length` on the returned string.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_object_begin(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Opens a new object in the output stream.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_object_end(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Closes the current open object in the output stream.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_array_begin(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Opens a new array in the output stream.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_array_end(struct luxem_rawwrite_context_t *context);</h1>
+			<p>Closes the current open object in the array stream.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_key(struct luxem_rawwrite_context_t *context, struct luxem_string_t const *string);</h1>
+			<p>Writes `string` as a key to the output stream.  This should only be called in an object.  Automatically quotes the string if necessary.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_type(struct luxem_rawwrite_context_t *context, struct luxem_string_t const *string);</h1>
+			<p>Writes `string` as a type to the output stream.  This should always be immediately followed by a value.  Automatically quotes the string if necessary.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>luxem_bool_t luxem_rawwrite_primitive(struct luxem_rawwrite_context_t *context, struct luxem_string_t const *string);</h1>
+			<p>Writes `string` as a primitive to the output stream.  Automatically quotes the string if necessary.  Returns `luxem_false` if an error occurred during the operation.</p>
+		</div>
+		<div class="method">
+			<h1>struct luxem_string_t const *luxem_to_ascii16(struct luxem_string_t const *data, struct luxem_string_t *error);</h1>
+			<p>Encodes `data` as ascii16 and returns the result as a `luxem_string_t`.  The caller is responsible for releasing the returned `luxem_string_t` with <span class="pre">free</span>.  If the function returns 0, <span class="pre">error</span> will contain an error message.</p>
+		</div>
+	</div>
+</div>
+
+<p>Rendaw, Zarbosoft &copy; 2014</p>
+
+</body>
+</html>
+

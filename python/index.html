@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>luxem Python</title>
+	<style type="text/css">
+body { margin: 0px; padding: 0px; font-family: sans; }
+
+body > h1 { padding-left: 1em; }
+body > p { padding-left: 1em; }
+body > div > h1 { padding-top: 1em; padding-left: 0.5em; font-size: 1.75em; border-bottom: 1px solid black; }
+div { padding-right: 0.5em; padding-left: 0.5em; }
+div.class { padding-left: 1em; }
+div.class > h1 { font-size: 1.5em; }
+div.method { padding-left: 3em; padding-bottom: 1em; }
+div.method > h1 { font-size: 1.2em; margin-left: -1.5em; font-family: monospace; }
+div.method > h2 { font-size: 1.1em; font-weight: normal; }
+pre { border-left: 1px solid grey; padding-left: 0.5em; margin-left: 0.2em; background-color: #F0F0F0; }
+span.pre { font-family: monospace; font-size: 1.2em; color: #2080A0; }
+	</style>
+</head>
+<body>
+
+<h1>luxem Python Documentation</h1>
+<p><span class="pre">luxem.RawReader</span> and <span class="pre">luxem.RawWriter</span> are minimal wrappers around the core C library API.  <span class="pre">luxem.Reader</span> and <span class="pre">luxem.Writer</span> expand upon the Raw-prefixed versions and add types, serializing and deserializing structures, and nested callbacks.</p>
+<p>Table of contents:</p>
+<ul>
+	<li><a href="#examples">Examples</a></li>
+	<li>
+		<a href="#api">API</a>
+		<ul>
+			<li><a href="#luxem_Typed">luxem.Typed</a></li>
+			<li><a href="#processors">Processors</a></li>
+			<li><a href="#luxem_RawReader">luxem.RawReader</a></li>
+			<li><a href="#luxem_Reader">luxem.Reader</a></li>
+			<li><a href="#luxem_Reader_Array">luxem.Reader.Array</a></li>
+			<li><a href="#luxem_Reader_Object">luxem.Reader.Object</a></li>
+			<li><a href="#luxem_RawWriter">luxem.RawWriter</a></li>
+			<li><a href="#luxem_Writer">luxem.Writer</a></li>
+		</ul>
+	</li>
+</ul>
+
+<div>
+	<a name="examples">
+	<h1>Examples</h1>
+	<div class="class">
+		<h1>Minimal write</h1>
+		<pre>import luxem
+print luxem.Writer(pretty=True).value({'key': 'value'}).dump()</pre>
+		<p>Output:</p>
+		<pre>{
+	key: value,
+},</pre>
+	</div>
+	<div class="class">
+		<h1>Mixed writing</h1>
+		<pre>import luxem
+with open('export.luxem', 'w') as export_file:
+    export = luxem.Writer(write_file=export_file, pretty=True).object_begin()
+    export.key('config').value({
+        'path': '/usr/bin',
+        'iterations': 10
+    })
+    export.key('inputs').array_begin()
+    for batch in ['batch001', 'batch002', luxem.Typed('optional', 'batch003')]:
+        export.value(batch)
+    export.array_end()
+    export.object_end()</pre>
+		<p>Output:</p>
+		<pre>{
+	config: {
+		path: /usr/bin,
+		iterations: 10,
+	},
+	inputs: [
+		batch001,
+		batch002,
+		(optional) batch003,
+	],
+},</pre>
+	</div>
+	<div>
+		<h1>Mixed reading</h1>
+		<pre>import luxem
+
+config = None
+
+def process(batch):
+    print 'processing batch {}'.format(batch)
+
+with open('export.luxem', 'r') as import_file:
+    reader = luxem.Reader()
+
+    def read_root(root_object):
+        def store_config(read_config):
+            config = read_config
+        root_object.struct('config', store_config)
+
+        def read_input(input_array):
+            def process_input(batch):
+                optional = False
+                if isinstance(batch, luxem.Typed):
+                    if batch.name == 'optional':
+                        optional = True
+                    batch = batch.value
+                try:
+                    process(batch)
+                except:
+                    if not optional:
+                        raise
+            input_array.element(process_input)
+        root_object.array('inputs', read_input)
+    reader.element(read_root, luxem.object)
+
+    reader.feed(import_file)</pre>
+		<p>Output:</p>
+		<pre>processing batch batch001
+processing batch batch002
+processing batch batch003
+</p>
+	</div>
+</div>
+
+<div>
+	<a name="api">
+	<h1>API</h1>
+	<div class="class">
+		<a name="luxem_Typed">
+		<h1>luxem.Typed</h1>
+		<p>This represents an explicitly typed value.</p>
+		<p>Any string can be used as a type, but the following are built in to the library:</p>
+		<ul>
+			<li>bool</li>
+			<li>int</li>
+			<li>float</li>
+			<li>string</li>
+			<li>ascii16</li>
+			<li>base64</li>
+		</ul>
+		<div class="method">
+			<h1>luxem.Typed(name, value=None)</h1>
+			<p>Initializes the <span class="pre">name</span> and <span class="pre">value</span> attributes.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="processors">
+		<h1>Processors</h1>
+		<p>Processors are functions that normalize reader input before it is passed to a callback.</p>
+		<p>Each processor returns the type indicated by its name.  If a read value is unconvertable or is typed but with a mismatched type name the processor will raise an exception.</p>
+		<div class="method">
+			<h1>bool(value)</h1>
+			<h1>int(value)</h1>
+			<h1>float(value)</h1>
+			<h1>ascii16(value)</h1>
+			<h1>base64(value)</h1>
+			<h1>bytes(value)</h1>
+			<h1>array(value)</h1>
+			<h1>object(value)</h1>
+			<h1>any(value)</h1>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_RawReader">
+		<h1>luxem.RawReader</h1>
+		<div class="method">
+			<h1>RawReader(object_begin, object_end, array_begin, array_end, key, type, primitive)</h1>
+			<p>Constructs a <span class="pre">RawReader</span> and initializes its read callbacks.  All callbacks must be provided.</p>
+			<p><span class="pre">object_begin</span>, <span class="pre">object_end</span>, <span class="pre">array_begin</span>, and <span class="pre">array_end</span> take a callback in the format:</p>
+			<pre>def callback():
+	return</pre>
+			<p><span class="pre">key</span>, <span class="pre">type</span> and <span class="pre">primitive</span> take a callback that accepts one string argument, in the format:</p>
+			<pre>def callback(value):
+	return</pre>
+			<p>If any callback raises and exception, parsing stops and the exception is propagated to where data is being provided.</p>
+		</div>
+		<div class="method">
+			<h1>feed(data, finish)</h1>
+			<p><span class="pre">data</span> must either be a string or file.</p>
+
+			<h2>If data is a string</h2>
+			<p>Parses the byte-string provided as the first parameter and returns the number of characters from the string that were consumed.  If parsing multiple chunks, any unconsumed characters of the byte-string must be provided again, at the beginning of the next fed string.</p>
+
+			<p>If <span class="pre">finish</span> is <span class="pre">True</span>, will conclude the last state encountered while parsing if possible.  Set <span class="pre">finish</span> to true if no more data is available.</p>
+
+			<h2>If data is a file</h2>
+			<p>Reads and parses the entire file passed as the first argument.  <span class="pre">finish</span> is ignored.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_Reader">
+		<h1>luxem.Reader</h1>
+		<p><span class="pre">luxem.Reader</span> inerhits <span class="pre">feed</span> from <a href="#luxem_RawReader">luxem.RawReader</a>.  Because a luxem document is an array at the highest level, <span class="pre">luxem.Reader.Array</span> methods are also provided in <span class="pre">luxem.Reader</span>.</p>
+		<div class="method">
+			<h1>Reader()</h1>
+			<p>Constructs a reader.</p>
+		</div>
+		<div class="method">
+			<h1>element(callback, processor=None)</h1>
+			<p>See <a href="#luxem_Reader_Array_element">element in luxem.Reader.Array</a>.</p>
+		</div>
+		<div class="method">
+			<h1>struct(callback)</h1>
+			<p>See <a href="#luxem_Reader_Array_struct">struct in luxem.Reader.Array</a>.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_Reader_Array">
+		<h1>luxem.Reader.Array</h1>
+		<p>Manages the parse context of a luxem array.  A callback can be associated with 
+		<div class="method">
+			<h1>finished(callback)</h1>
+			<p>Sets a finished callback.  <span class="pre">callback</span> will be called when the object that is currently being parsed is exited (after which no other callbacks will be called in this context).<p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback():
+	return</pre>
+		</div>
+		<a name="luxem_Reader_Array_element">
+		<div class="method">
+			<h1>element(callback, processor=None)</h1>
+			<p>Uses <span class="pre">callback</span> for all elements in the array.  Uses user-provided <span class="pre">processor</span> to preprocess input.
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<a name="luxem_Reader_Array_struct">
+		<div class="method">
+			<h1>struct(callback)</h1>
+			<p>Uses <span class="pre">callback</span> for all elements in the array.  Recursively reads the subtree at at each element and builds a Python structure of <span class="pre">list</span>s and <span class="pre">dict</span>s, which is passed in whole to <span class="pre">callback</span>.  Typed values are automatically translated if they match a built-in processor.</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_Reader_Object">
+		<h1>luxem.Reader.Object</h1>
+		<p>Manages the parse context of a luxem object.  Separate callbacks can be associated with expected keys or a passthrough callback can be used to capture all key-value pairs.</p>
+		<div class="method">
+			<h1>finished(callback)</h1>
+			<p>Sets a finished callback.  <span class="pre">callback</span> will be called when the object that is currently being parsed is exited (after which no other callbacks will be called in this context).<p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback():
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>bool(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.bool</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>int(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.int</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>float(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.float</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>string(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Uses no processor.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>bytes(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.bytes</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>ascii16(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.ascii16</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>base64(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.base64</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>object(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.object</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>array(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with <span class="pre">luxem.array</span>.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>element(key, callback, processor=None)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Preprocesses input with argument <span class="pre">processor</span>.
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>struct(key, callback)</h1>
+			<p>Associates <span class="pre">callback</span> with <span class="pre">key</span>.  Recursively reads the subtree at <span class="pre">key</span> and builds a Python structure of <span class="pre">list</span>s and <span class="pre">dict</span>s which is passed in whole to <span class="pre">callback</span>.  Typed values are automatically translated if they match a built-in processor.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(value):
+	return</pre>
+		</div>
+		<div class="method">
+			<h1>passthrough(callback)</h1>
+			<p>Sets a callback to use for every key-value pair.  This overrides all other callbacks.</p>
+			<p><span class="pre">callback</span> has the form:</p>
+			<pre>def callback(key, value):
+	return</pre>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_RawWriter"></a>
+		<h1>luxem.RawWriter</h1>
+		<div class="method">
+			<h1>RawWriter(write_callback=None, write_file=None, pretty=False, use_spaces=False, indent_multiple=1)</h1>
+			<p>All arguments are optional.</p>
+			<p>All generated strings will be passed to <span class="pre">write_callback</span> if it is specified.  Otherwise, all data will be written to <span class="pre">write_file</span> if it is specified,.  If neither are specified, all data will be written to an internal buffer which can be retrieved with <a href="#luxem_RawWriter_dump"><span class="pre">dump</span></a>.</p>
+			<p><span class="pre">write_callback</span> and <span class="pre">write_file</span> are mutually exclusive and
+		</div>
+		<div class="method">
+			<h1>dump()</h1>
+			<p>Returns written data as a byte string.  Only valid when not serializing with a callback or file.</p>
+		</div>
+		<div class="method">
+			<h1>object_begin()</h1>
+			<p>Opens an object.  Returns self.</p>
+		</div>
+		<div class="method">
+			<h1>object_end()</h1>
+			<p>Ends an open object.  Returns self.</p>
+		</div>
+		<div class="method">
+			<h1>array_begin()</h1>
+			<p>Opens an array.  Returns self.</p>
+		</div>
+		<div class="method">
+			<h1>array_end()</h1>
+			<p>Ends an open array.  Returns self.</p>
+		</div>
+		<div class="method">
+			<h1>key(value)</h1>
+			<p>Writes an object key.  Returns self.  Only valid in an object.</p>
+		</div>
+		<div class="method">
+			<h1>type(value)</h1>
+			<p>Writes a type.  Returns self.  Only valid before a primitive.</p>
+		</div>
+		<div class="method">
+			<h1>primitive(value)</h1>
+			<p>Writes a primitive.  Returns self.</p>
+		</div>
+	</div>
+	<div class="class">
+		<a name="luxem_Writer"></a>
+		<h1>luxem.Writer</h1>
+		<p><span class="pre">luxem.Writer</span> inerhits all members from <a href="#luxem_RawWriter">luxem.RawWriter</a>.</p>
+		<div class="method">
+			<h1>value(data)</h1>
+			<p>Writes any object, recursively serializing iterables and maps as arrays and objects.  If <span class="pre">data</span> is a <span class="pre">luxem.Typed</span>, the value in <span class="pre">value.name</span> is written as a type.  Returns self.</p>
+		</div>
+	</div>
+</div>
+
+<p>Rendaw, Zarbosoft &copy; 2014</p>
+
+</body>
+</html>
+

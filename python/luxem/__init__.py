@@ -5,13 +5,14 @@ from _luxem import (
     from_ascii16
 )
 from struct import Typed, Untyped
-from read import Reader
-from processors import (
+from read import (
+    Reader,
     process_bool as bool,
     process_int as int,
     process_float as float,
     process_ascii16 as ascii16,
     process_base64 as base64,
+    process_bytes as bytes,
     process_array as array,
     process_object as object,
     process_any as any,
