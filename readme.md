@@ -57,13 +57,13 @@ However, several JSON use cases are very difficult or impossible:
 
 Other than the C implementation, all implementations are git submodules of this project.
 
-### C
+- [luxem-c](https://github.com/Rendaw/luxem-c)
 
-The C implementation is barebones, with no buffer allocation, type translation, or structure generation support.
+  This is a barebones C implementation, with no buffer allocation, type translation, or structure generation support.
 
-### Python
+- [luxem-python](https://github.com/Rendaw/luxem-python)
 
-The Python implementation is a C-api module based on the C implementation, but also supporting type translations and structure generation.
+  The Python implementation wraps luxem-c and adds support for type translations and structure generation.
 
 ## Cool Tricks
 
@@ -88,7 +88,7 @@ The Python implementation is a C-api module based on the C implementation, but a
 {x: -19, y: -22, weight: 0.33011},
 ```
 
-=
+ =
 
 ```luxem
 {x: 7, y: 3, weight: 1.29867},
