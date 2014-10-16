@@ -55,8 +55,6 @@ However, several JSON use cases are very difficult or impossible:
 
 ## Implementations
 
-Other than the C implementation, all implementations are git submodules of this project.
-
 - [luxem-c](https://github.com/Rendaw/luxem-c)
 
   This is a barebones C implementation, with no buffer allocation, type translation, or structure generation support.
