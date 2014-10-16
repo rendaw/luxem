@@ -6,10 +6,10 @@ luxem is a specification for serializing structured data.
 
 luxem is similar to JSON.  The main differences are:
 
-#. You can specify a type using `(typename)` before any value. Ex: `(direction) up`.
-#. You can have a `,` after the final element in an object or array.
-#. Quotes are optional for simple strings (strings containing no spaces and no ambiguous symbols).
-#. The document is an array with implicit (excluded) `[]` delimiters.
+1. You can specify a type using `(typename)` before any value. Ex: `(direction) up`.
+2. You can have a `,` after the final element in an object or array.
+3. Quotes are optional for simple strings (strings containing no spaces and no ambiguous symbols).
+4. The document is an array with implicit (excluded) `[]` delimiters.
 
 No basic types are defined in the parsing specification, but the following should be used as a guideline for minimum data type support:
 
@@ -31,27 +31,27 @@ However, several JSON use cases are very difficult or impossible:
 
 1. There is no way to identify types in a mixed-type structure (for example, when serializing polymorphic objects).  
 
-An object key-value pair could be used to identify an object type, but, since objects elements are unordered, a validated document could have the type-key occur after the object body, preventing efficient streaming.
+  An object key-value pair could be used to identify an object type, but, since objects elements are unordered, a validated document could have the type-key occur after the object body, preventing efficient streaming.
 
-An array can be used to guarantee the type identifier occurs before the body, but this is visually indistinguishable from other array uses and requires following a non-standard convention.
+  An array can be used to guarantee the type identifier occurs before the body, but this is visually indistinguishable from other array uses and requires following a non-standard convention.
 
 2. The existing primitive types are too restrictive. 
 
-There is no enumeration type.
+  There is no enumeration type.
 
-There is no type for raw binary data.
+  There is no type for raw binary data.
 
 3. The existing primitive types are too complex.
 
-The numeric notation in the form `4e10` is unnecessary and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the domain.  Unicode escapes are specified as UTF-16, and must be understood (and in some cases translated) by a compliant parser.
+  The numeric notation in the form `4e10` is unnecessary and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the domain.  Unicode escapes are specified as UTF-16, and must be understood (and in some cases translated) by a compliant parser.
 
-Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one or another type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your division will fall into the type categories provided by JSON.
+  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one or another type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your division will fall into the type categories provided by JSON.
 
 3. The document structure is overspecified.
 
-Many uses of JSON involve a document that is a list.  To represent this in conformant JSON, you need a minimum of an object, a key, and an array (*update:* This requirement has been relaxed in a recent specification and is no longer true).  
+  Many uses of JSON involve a document that is a list.  To represent this in conformant JSON, you need a minimum of an object, a key, and an array (*update:* This requirement has been relaxed in a recent specification and is no longer true).  
 
-You cannot concatenate documents without a full JSON parser.
+  You cannot concatenate documents without a full JSON parser.
 
 ## Implementations
 
@@ -82,13 +82,13 @@ The Python implementation is a C-api module based on the C implementation, but a
 {x: 1, y: -20, weight: 0.24234},
 ```
 
-`+`
++
 
 ```luxem
 {x: -19, y: -22, weight: 0.33011},
 ```
 
-`=`
+=
 
 ```luxem
 {x: 7, y: 3, weight: 1.29867},
@@ -98,7 +98,7 @@ The Python implementation is a C-api module based on the C implementation, but a
 
 All three of the above are valid documents.
 
-### Minimality
+### Minimalism
 
 ```luxem
 9, 2
