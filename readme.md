@@ -11,6 +11,8 @@ luxem is similar to JSON.  The main differences are:
 3. Quotes are optional for simple strings (strings containing no spaces and no ambiguous symbols).
 4. The document is an array with implicit (excluded) `[]` delimiters.
 
+All documents should be UTF-8 with 0x0A line endings (linux-style).
+
 No basic types are defined in the parsing specification, but the following should be used as a guideline for minimum data type support:
 
 * `bool` `true|false|yes|no|1|0`
@@ -20,8 +22,6 @@ No basic types are defined in the parsing specification, but the following shoul
 * `ascii16` `([a-p][a-p])*`
 
 `ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `bool` is not case-sensitive.
-
-Conformant parsers should assume all documents are UTF8.
 
 ## Why?
 
@@ -63,6 +63,10 @@ However, several JSON use cases are very difficult or impossible:
 
   The Python implementation wraps luxem-c and adds support for type translations and structure generation.
 
+- [luxem-cxx](https://github.com/Rendaw/luxem-cxx)
+
+  This is roughly equivalent to the Python version, with a C++ boxed-type implementation for building structures.
+
 ## Cool Tricks
 
 ### Specifying a file type
@@ -101,8 +105,6 @@ All three of the above are valid documents.
 ```luxem
 9, 2
 ```
-
-This is also a valid document.
 
 ## Almost Formal Specification
 ```
@@ -143,4 +145,6 @@ This is also a valid document.
 `<word>` matches `[^ ([,:"]`.
 
 `<words-not-*>` matches a sequence of characters excluding the non-escaped delimiter (represented as `*` here).  Characters can be escaped using `\`.
-```
+
+All documents should be UTF-8 with 0x0A line endings (linux-style).
+
