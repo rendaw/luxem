@@ -45,7 +45,7 @@ However, several JSON use cases are very difficult or impossible:
 
   The numeric notation in the form `4e10` is unnecessary and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the domain.  Unicode escapes are specified as UTF-16, and must be understood (and in some cases translated) by a compliant parser.
 
-  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one or another type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your division will fall into the type categories provided by JSON.
+  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one or another type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your desired distinction will fall into the type categories provided by JSON.
 
 3. The document structure is overspecified.
 
