@@ -67,6 +67,12 @@ However, several JSON use cases are very difficult or impossible:
 
   This is roughly equivalent to the Python version, with a C++ boxed-type implementation for building structures.
 
+## Tools
+
+- [luxemog](https://github.com/Rendaw/luxemog)
+
+  `luxemog` reads rules from a file and uses them to transform a luxem document.
+
 ## Cool Tricks
 
 ### Specifying a file type
