@@ -10,6 +10,7 @@ luxem is similar to JSON.  The main differences are:
 2. You can have a `,` after the final element in an object or array.
 3. Quotes are optional for simple strings (strings containing no spaces and no ambiguous symbols).
 4. The document is an array with implicit (excluded) `[]` delimiters.
+5. Comments (written as `*comment text*`) can be placed anywhere whitespace is ignored.
 
 All documents should be UTF-8 with 0x0A line endings (linux-style).
 
@@ -20,8 +21,9 @@ No basic types are defined in the parsing specification, but the following shoul
 * `float` `-?[0-9]+(\.[0-9]+)?`
 * `string`
 * `ascii16` `([a-p][a-p])*`
+* `null`
 
-`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `bool` is not case-sensitive.
+`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `bool` is not case-sensitive.  `null` should not necessarily be accepted in all contexts, but when a null value is required it should be specified as `null`.
 
 ## Why?
 
@@ -45,13 +47,21 @@ However, several JSON use cases are very difficult or impossible:
 
   The numeric notation in the form `4e10` is unnecessary and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the domain.  Unicode escapes are specified as UTF-16, and must be understood (and in some cases translated) by a compliant parser.
 
-  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one or another type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your desired distinction will fall into the type categories provided by JSON.
+  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one type or type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your desired distinction will fall into the type categories provided by JSON.
 
-3. The document structure is overspecified.
+4. The document structure is overspecified.
 
   Many uses of JSON involve a document that is a list.  To represent this in conformant JSON, you need a minimum of an object, a key, and an array (*update:* This requirement has been relaxed in a recent specification and is no longer true).  
 
   You cannot concatenate documents without a full JSON parser.
+
+5. There is no way to comment documents.
+
+  Comments are necessary when working with configuration files and templates.
+
+  Workarounds involving ignored strings cause a multitude of problems, including increasing the likelihood of key collisions in objects, difficulty to use in array contexts, and requiring in-application comment filtering.  
+
+  Workarounds involving preprocessors to remove comments increase processing complexity, software dependencies, and (not always accessible) pipeline changes, and still result in non-standard JSON files.
 
 ## Implementations
 
@@ -145,10 +155,10 @@ All three of the above are valid documents.
 
 <object-element-prhase> ::= <key> <w> ":" <w> <value-phrase>
 
-```
-`<w>` matches any whitespace character.
+<w> ::= [" "] ["\n"] ["\t"] ["*" <words-not-*>  "*"] [<w>]
 
-`<word>` matches `[^ ([,:"]`.
+```
+`<word>` matches `[^ ([,:"*]*`.
 
 `<words-not-*>` matches a sequence of characters excluding the non-escaped delimiter (represented as `*` here).  Characters can be escaped using `\`.
 
