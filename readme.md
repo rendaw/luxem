@@ -31,21 +31,21 @@ In general, I think JSON is excellent.  XML is bloated (header boiler-plate, num
 
 However, several JSON use cases are very difficult or impossible:
 
-- There is no way to serialize and deserialize polymorphic data.  
+- Serializing and deserializing polymorphic data
 
   An object key-value pair could be used to identify an object type, but, since objects elements are unordered, a validated document could have the type-key occur after the object body, preventing efficient streaming.
 
   An array can be used to guarantee the type identifier occurs before the body, but this is visually indistinguishable from other array uses and requires following a non-standard convention.
 
-- Enumeration fields are indistinguishable from free-entry strings.
+- Distinguishing enumeration fields from free-entry strings
 
-- There is native way to format binary data.
+- Formatting binary data
 
-- Writing a full parser is unnecessarily difficult:
+- Writing a compliant, full parser
 
   The numeric notation in the form `4e10` has limited value and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the data domain.  UTF-16 escapes must be understood and converted.
 
-- There is no way to comment documents.
+- Documenting templates
 
   Workarounds involving ignored strings cause a multitude of problems, including increasing the likelihood of key collisions in objects, difficulty to use in array contexts, and requiring in-application comment filtering.  
 
