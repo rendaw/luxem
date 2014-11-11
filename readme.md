@@ -49,13 +49,7 @@ However, several JSON use cases are very difficult or impossible:
 
   Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one type or type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your desired distinction will fall into the type categories provided by JSON.
 
-4. The document structure is overspecified.
-
-  Many uses of JSON involve a document that is a list.  To represent this in conformant JSON, you need a minimum of an object, a key, and an array (*update:* This requirement has been relaxed in a recent specification and is no longer true).  
-
-  You cannot concatenate documents without a full JSON parser.
-
-5. There is no way to comment documents.
+4. There is no way to comment documents.
 
   Comments are necessary when working with configuration files and templates.
 
@@ -78,6 +72,10 @@ However, several JSON use cases are very difficult or impossible:
   This is roughly equivalent to the Python version, with a C++ boxed-type implementation for building structures.
 
 ## Tools
+
+- [luxemog](https://github.com/Rendaw/luxemx)
+
+  `luxemx` is a command-line tool for extracting elements from luxem documents.  A poor-man's luxem jq.
 
 - [luxemog](https://github.com/Rendaw/luxemog)
 
@@ -163,4 +161,9 @@ All three of the above are valid documents.
 `<words-not-*>` matches a sequence of characters excluding the non-escaped delimiter (represented as `*` here).  Characters can be escaped using `\`.
 
 All documents should be UTF-8 with 0x0A line endings (linux-style).
+
+The name `luxem` is always lowercase.
+
+---
+&copy; Rendaw, Zarbosoft 2014
 
