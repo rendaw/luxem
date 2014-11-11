@@ -10,7 +10,7 @@ luxem is similar to JSON.  The main differences are:
 2. You can have a `,` after the final element in an object or array.
 3. Quotes are optional for simple strings (strings containing no spaces and no ambiguous symbols).
 4. The document is an array with implicit (excluded) `[]` delimiters.
-5. Comments (written as `*comment text*`) can be placed anywhere whitespace is ignored.
+5. Comments (written as `*comment text*`) can be placed anywhere whitespace is.
 
 All documents should be UTF-8 with 0x0A line endings (linux-style).
 
@@ -37,7 +37,7 @@ However, several JSON use cases are very difficult or impossible:
 
   An array can be used to guarantee the type identifier occurs before the body, but this is visually indistinguishable from other array uses and requires following a non-standard convention.
 
-- There is no enumeration format.
+- Enumeration fields are indistinguishable from free-entry strings.
 
 - There is native way to format binary data.
 
@@ -46,8 +46,6 @@ However, several JSON use cases are very difficult or impossible:
   The numeric notation in the form `4e10` has limited value and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the data domain.  UTF-16 escapes must be understood and converted.
 
 - There is no way to comment documents.
-
-  Comments are necessary when working with configuration files and templates.
 
   Workarounds involving ignored strings cause a multitude of problems, including increasing the likelihood of key collisions in objects, difficulty to use in array contexts, and requiring in-application comment filtering.  
 
