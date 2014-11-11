@@ -1,4 +1,4 @@
-# luxem 0.1
+# luxem 0.0.1
 
 ## What is luxem?
 
@@ -31,25 +31,21 @@ In general, I think JSON is excellent.  XML is bloated (header boiler-plate, num
 
 However, several JSON use cases are very difficult or impossible:
 
-1. There is no way to identify types in a mixed-type structure (for example, when serializing polymorphic objects).  
+- There is no way to serialize and deserialize polymorphic data.  
 
   An object key-value pair could be used to identify an object type, but, since objects elements are unordered, a validated document could have the type-key occur after the object body, preventing efficient streaming.
 
   An array can be used to guarantee the type identifier occurs before the body, but this is visually indistinguishable from other array uses and requires following a non-standard convention.
 
-2. The existing primitive types are too restrictive. 
+- There is no enumeration format.
 
-  There is no enumeration type.
+- There is native way to format binary data.
 
-  There is no type for raw binary data.
+- Writing a full parser is unnecessarily difficult:
 
-3. The existing primitive types are too complex.
+  The numeric notation in the form `4e10` has limited value and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the data domain.  UTF-16 escapes must be understood and converted.
 
-  The numeric notation in the form `4e10` is unnecessary and complicates the parser.  `null` must be accepted everywhere in the document, regardless of the domain.  Unicode escapes are specified as UTF-16, and must be understood (and in some cases translated) by a compliant parser.
-
-  Standard types, such as numbers and boolean values are unambiguously differentiated, but differentiating them is rarely important - you expect one type or type by context.  In situations where you do need to distinguish types, there is no guarantee (or likeliness) that your desired distinction will fall into the type categories provided by JSON.
-
-4. There is no way to comment documents.
+- There is no way to comment documents.
 
   Comments are necessary when working with configuration files and templates.
 
@@ -73,7 +69,7 @@ However, several JSON use cases are very difficult or impossible:
 
 ## Tools
 
-- [luxemog](https://github.com/Rendaw/luxemx)
+- [luxemx](https://github.com/Rendaw/luxemx)
 
   `luxemx` is a command-line tool for extracting elements from luxem documents.  A poor-man's luxem jq.
 
