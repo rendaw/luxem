@@ -1,5 +1,73 @@
 # luxem 0.0.1
 
+Looks like
+
+```
+{
+    name: luxem,
+    *TODO complete color selection*
+	background: [0.21568, 0.21568, 0.21568],
+	groups: {
+	    value: [
+	        luxem-object,
+	        luxem-array,
+	        luxem-primitive,
+	    ],
+	},
+	root: value,
+	types: [
+		{
+		    id: luxem-object,
+			name: "Luxem Object",
+			back: [(data-record) data],
+			middle: [
+			    (record) {
+			        key: data,
+			        tag: value,
+			    }
+            ],
+			front: [
+				(mark) "{",
+				(record) {
+					key: data,
+					infix: [ (mark) ":" ],
+					separator: [ (mark) "," ],
+				},
+				(mark) "}",
+			],
+		},
+		{
+		    id: luxem-array,
+			name: "Luxem Array",
+			back: [(data-array) data],
+			middle: [
+			    (array) {
+			        key: data,
+			        tag: value,
+			    }
+            ],
+			front: [
+				(mark) "[",
+				(array) {
+					key: data,
+					separator: [ (mark) "," ],
+				},
+				(mark) "]",
+			],
+		},
+		{
+		    id: luxem-primitive,
+			name: "Luxem Primitive",
+			back: [(data-primitive) data],
+			middle: [(primitive) data],
+			front: [
+				(primitive) data,
+			],
+		}
+	]
+}
+```
+
 ## What is luxem?
 
 luxem is a specification for serializing structured data.  
@@ -16,14 +84,14 @@ All documents should be UTF-8 with 0x0A line endings (linux-style).
 
 No basic types are defined in the parsing specification, but the following should be used as a guideline for minimum data type support:
 
-* `bool` `true|false|yes|no|1|0`
+* `bool` `true|false`
 * `int` `-?[0-9]+`
-* `float` `-?[0-9]+(\.[0-9]+)?`
+* `dec` `-?[0-9]+(\.[0-9]+)?`
 * `string`
 * `ascii16` `([a-p][a-p])*`
 * `null`
 
-`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `bool` is not case-sensitive.  `null` should not necessarily be accepted in all contexts, but when a null value is required it should be specified as `null`.
+`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `null` should not necessarily be accepted in all contexts, but when a null value is required it should be specified as `null`.
 
 ## Why?
 
@@ -55,7 +123,7 @@ However, several JSON use cases are very difficult or impossible:
 
 - [luxem-c](https://github.com/Rendaw/luxem-c)
 
-  This is a barebones C implementation, with no buffer allocation, type translation, or structure generation support.
+  This is a barebones C implementation, with no type translation or structure generation support.
 
 - [luxem-python](https://github.com/Rendaw/luxem-python)
 
@@ -65,15 +133,9 @@ However, several JSON use cases are very difficult or impossible:
 
   This is roughly equivalent to the Python version, with a C++ boxed-type implementation for building structures.
 
-## Tools
+- [luxemj](https://github.com/Rendaw/luxemj)
 
-- [luxemx](https://github.com/Rendaw/luxemx)
-
-  `luxemx` is a command-line tool for extracting elements from luxem documents.  A poor-man's luxem jq.
-
-- [luxemog](https://github.com/Rendaw/luxemog)
-
-  `luxemog` reads rules from a file and uses them to transform a luxem document.
+  Luxemj can only deserialize.  It is based on the `pidgoon` parser generator and is fairly slow, but supports annotation-based structure deserialization.
 
 ## Cool Tricks
 
@@ -114,45 +176,8 @@ All three of the above are valid documents.
 9, 2
 ```
 
-## Almost Formal Specification
-```
-<START-HERE> ::= <w> <array-body> <w>
-
-<array> ::= "[" <w> <array-body> <w> "]"
-
-<array-body> ::= [<value-phrase> <w> <array-elements>]
-
-<array-elements> ::= "," <w> <value-phrase>
-	| ","
-
-<value-phrase> ::= [<type> <w>] <value>
-
-<type> ::= "(" <words-not-)> ")"
-
-<value> ::= <primitive>
-	| <object>
-	| <array>
-
-<primitive> ::= <string>
-
-<string> ::= <word>
-	| "\"" <words-not-"> "\""
-
-<object> ::= "{" <w> <object-body> <w> "}"
-
-<object-body> ::= [<object-element-phrase> <w> <object-elements>]
-
-<object-elements> ::= "," <w> <object-element-body> <w> <object-elements>
-	| ","
-
-<object-element-prhase> ::= <key> <w> ":" <w> <value-phrase>
-
-<w> ::= [" "] ["\n"] ["\t"] ["*" <words-not-*>  "*"] [<w>]
-
-```
-`<word>` matches `[^ ([,:"*]*`.
-
-`<words-not-*>` matches a sequence of characters excluding the non-escaped delimiter (represented as `*` here).  Characters can be escaped using `\`.
+## Specification
+The Pidgoon specification [here](https://github.com/Rendaw/luxemj/blob/master/src/main/resources/luxem.pidgoon) should be treated as authoritative.
 
 All documents should be UTF-8 with 0x0A line endings (linux-style).
 
