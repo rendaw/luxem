@@ -89,9 +89,8 @@ No basic types are defined in the parsing specification, but the following shoul
 * `dec` `-?[0-9]+(\.[0-9]+)?`
 * `string`
 * `ascii16` `([a-p][a-p])*`
-* `null`
 
-`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.  `null` should not necessarily be accepted in all contexts, but when a null value is required it should be specified as `null`.
+`ascii16` is a binary encoding that is both ugly and easy to parse, using the first 16 characters of the alphabet.
 
 ## Why?
 
