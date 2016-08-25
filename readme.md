@@ -1,4 +1,4 @@
-# luxem 0.0.1
+# luxem 0.0.2
 
 Looks like
 
