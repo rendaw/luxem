@@ -4,8 +4,8 @@ Looks like
 
 ```
 {
-    name: luxem,
-    *TODO complete color selection*
+	name: luxem,
+	*TODO complete color selection*
 	background: [0.21568, 0.21568, 0.21568],
 	groups: {
 	    value: [
